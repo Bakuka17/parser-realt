@@ -1,0 +1,31 @@
+"""
+realty_parser_v4.py — Этап 1, версия 4 (debug + lenient parsing).
+"""
+
+import asyncio
+import hashlib
+import re
+from datetime import date, timedelta
+from pathlib import Path
+
+from playwright.async_api import async_playwright
+
+HAS_STEALTH = False
+STEALTH_FN = None
+try:
+    from playwright_stealth import stealth_async as STEALTH_FN
+    HAS_STEALTH = True
+except ImportError:
+    try:
+        from playwright_stealth import Stealth
+        _s = Stealth()
+        STEALTH_FN = _s.apply_stealth_async
+        HAS_STEALTH = True
+    except ImportError:
+        pass
+
+if not HAS_STEALTH:
+    print("⚠ playwright_stealth не установлен — продолжаю без него (это не критично)")
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, Patter

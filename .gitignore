@@ -1,0 +1,15 @@
+# venv
+bin/
+lib/
+include/
+pyvenv.cfg
+# данные и артефакты (большие, меняются часто)
+*.xlsx
+~$*.xlsx
+photos/
+debug_cards.txt
+__pycache__/
+*.pyc
+.DS_Store
+# сборка swift
+RealtyApp/.build/
