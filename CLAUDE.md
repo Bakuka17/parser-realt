@@ -4,7 +4,10 @@
 нескольких источников в один Excel с телефонами/адресами для обзвона.
 
 Окружение: venv в `/Users/denis/realty_env`. Запуск Python: `./bin/python`.
-Зависимости: `playwright`, `openpyxl`, `playwright-stealth`. Платформа: macOS.
+Зависимости: `playwright`, `openpyxl`, `playwright-stealth`, `beautifulsoup4`+`lxml` (HTML-парсинг —
+ПРЕДПОЧТИТЕЛЬНЕЕ регэкспов, в т.ч. в брифах ботам), `pypdf`. Системно: `poppler` (чтение PDF),
+`git` (репозиторий инициализирован 01.06, первый коммит сделан; venv/xlsx/photos в .gitignore).
+Платформа: macOS.
 **Бэкап проекта: Яндекс.Диск** — `~/Yandex.Disk.localized/realty_backup/` (в Finder показывается
 как «Яндекс.Диск»). Синкается ВСЁ: код, все xlsx (включая `saved_realty.xlsx`), папка `photos/`,
 CLAUDE.md, `.command`-лаунчер. iCloud-бэкап убран — пользователь предпочёл одну облачную копию
