@@ -213,7 +213,14 @@
       "Bash(echo \"свод: $\\(./bin/python -c \"import openpyxl; ws=openpyxl.load_workbook\\('auctions_realty.xlsx',read_only=True\\).active; print\\(ws.max_row-2\\)\"\\) лотов\")",
       "Bash(gh auth *)",
       "Bash(grep -cE '^\\(bin|lib|include\\)/|\\\\.xlsx$')",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(grep -cE '^\\(bin|include\\)/|\\\\.xlsx$|pyvenv.cfg')",
+      "Read(//Users/denis/.ssh/**)",
+      "Bash(ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com)",
+      "Bash(git credential-osxkeychain *)",
+      "Bash(cd ~/.claude/projects/-Users-denis-realty-env/ 2>/dev/null && pwd && echo \"=== файлы сессий \\(.jsonl\\) ===\" && ls -lat *.jsonl 2>/dev/null | head -10 || echo \"папка проекта не найдена, ищу шире:\" *)",
+      "Bash(git commit -q -m 'CLAUDE.md: задокументирован анти-бан realt v8 \\(ротация UA / is_blocked / скролл / сброс контекста\\) + выловленные баги Qwen *)",
+      "Bash(git push *)"
     ]
   }
 }

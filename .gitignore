@@ -16,3 +16,6 @@ RealtyApp/.build/
 
 # runtime-логи
 logs/
+
+# сохранённые диалоги (личный лог, не код)
+dialogs/
