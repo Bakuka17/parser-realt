@@ -1,6 +1,11 @@
 {
   "permissions": {
     "allow": [
+      "Bash(./bin/python *)",
+      "Bash(curl *)",
+      "WebFetch",
+      "Write(//Users/denis/realty_env/**)",
+      "Edit(//Users/denis/realty_env/**)",
       "Read(//private/tmp/**)",
       "Bash(./bin/python -c ' *)",
       "Bash(grep -nA2 \"^Контактное лицо$\\\\|^Собственник$\" recon_dump.txt)",
@@ -188,7 +193,27 @@
       "Bash(./bin/python -m py_compile merge_auctions.py)",
       "Bash(awk '{print \"  \"$1\" строк\"}')",
       "Bash(./bin/python -c \"import bs4,lxml; print\\('bs4',bs4.__version__,'| lxml',lxml.__version__\\)\")",
-      "Bash(cat)"
+      "Bash(cat)",
+      "Bash(./bin/python -)",
+      "Bash(sed -n '1,80p' merge_auctions.py)",
+      "Read(//Users/denis/Library/LaunchAgents/**)",
+      "Bash(launchctl list *)",
+      "Bash(timeout 240 ./bin/python eauction_auctions.py)",
+      "Bash(echo \"=== EXIT $? ===\")",
+      "Bash(./bin/python -c \"import ast; ast.parse\\(open\\('eauction_auctions.py'\\).read\\(\\)\\); print\\('✓ синтаксис ок'\\)\")",
+      "Bash(./bin/python merge_auctions.py)",
+      "Bash(./bin/python -c \"import json,os; p=os.path.expanduser\\('~/.claude/settings.json'\\); d=json.load\\(open\\(p\\)\\) if os.path.exists\\(p\\) else {}; print\\(json.dumps\\(d.get\\('permissions',{}\\),ensure_ascii=False,indent=2\\)\\)\")",
+      "Bash(./bin/python -m *)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(grep -vE '^\\(bin|lib|lib64|include|share|pyvenv.cfg|.*\\\\.py|.*\\\\.xlsx\\)$')",
+      "Read(//Users/denis/realty_env/**)",
+      "Bash(bash -n scheduled_run.sh)",
+      "Bash(grep -v '\\\\.$')",
+      "Bash(pkill -9 -f \"ipmtorgi_auctions.py\")",
+      "Bash(echo \"свод: $\\(./bin/python -c \"import openpyxl; ws=openpyxl.load_workbook\\('auctions_realty.xlsx',read_only=True\\).active; print\\(ws.max_row-2\\)\"\\) лотов\")",
+      "Bash(gh auth *)",
+      "Bash(grep -cE '^\\(bin|lib|include\\)/|\\\\.xlsx$')",
+      "Bash(git add *)"
     ]
   }
 }

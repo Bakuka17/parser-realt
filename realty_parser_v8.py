@@ -32,10 +32,21 @@ except ImportError:
     except ImportError:
         pass
 
-UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
+# Ротация User-Agent (анти-бан, идея Qwen)
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0",
+]
+
+
+def get_random_ua() -> str:
+    return random.choice(USER_AGENTS)
+
+
+UA = get_random_ua()  # обратная совместимость
 
 CATEGORIES = [
     {"url": "https://realt.by/sale/offices/", "deal": "Продажа", "type": "Офис"},
@@ -482,6 +493,37 @@ async def apply_stealth(page: Page, cfg: RunConfig) -> None:
             print(f"  (stealth) {e}")
 
 
+BLOCK_MARKERS = (
+    "cloudflare", "проверка безопасности", "доступ ограничен", "ddos", "captcha",
+    "attention required", "just a moment", "доступ запрещен", "access denied",
+)
+
+
+async def is_blocked(page: Page) -> bool:
+    """Признаки антибота/WAF (Cloudflare и т.п.). Идея Qwen; фикс: срез ПОСЛЕ await."""
+    try:
+        title = (await page.title()).lower()
+        html = (await page.content())[:1500].lower()
+        blob = title + " " + html
+        return any(m in blob for m in BLOCK_MARKERS)
+    except Exception:
+        return False
+
+
+async def human_scroll(page: Page) -> None:
+    """Человекоподобный плавный скролл вместо механического (анти-бан, идея Qwen)."""
+    try:
+        height = await page.evaluate("document.body.scrollHeight")
+        steps = random.randint(3, 6)
+        for i in range(1, steps + 1):
+            pos = int((height / steps) * i)
+            await page.evaluate(f"window.scrollTo({{top: {pos}, behavior: 'smooth'}})")
+            await asyncio.sleep(random.uniform(0.4, 1.2))
+        await asyncio.sleep(random.uniform(1.0, 2.5))
+    except Exception:
+        pass
+
+
 async def goto_with_retry(
     page: Page,
     url: str,
@@ -494,6 +536,11 @@ async def goto_with_retry(
     for attempt in range(1, cfg.goto_retries + 1):
         try:
             await page.goto(url, wait_until=wait_until, timeout=timeout)
+            if await is_blocked(page):  # анти-бан: словили WAF — пауза и повтор
+                if cfg.verbose:
+                    print(f"    ⚠ блокировка на {url} — пауза {attempt}/{cfg.goto_retries}")
+                await asyncio.sleep(random.uniform(5, 10))
+                continue
             return True
         except Exception as e:
             last = e
@@ -703,14 +750,7 @@ async def scrape_one_page(
         print(f"  ✖ не удалось открыть {page_url}")
         return []
     await asyncio.sleep(random.uniform(3, 5))
-    try:
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await asyncio.sleep(1.5)
-        await page.evaluate("window.scrollTo(0, 0)")
-        await asyncio.sleep(0.8)
-    except Exception as e:
-        if cfg.verbose:
-            print(f"  scroll: {e}")
+    await human_scroll(page)  # анти-бан: человекоподобный скролл (идея Qwen)
     links = await page.query_selector_all("a[href*='/object/']")
     items: list[dict] = []
     for link in links:
@@ -1126,7 +1166,7 @@ async def collect_new(
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=cfg.headless)
         context = await browser.new_context(
-            user_agent=UA, viewport={"width": 1440, "height": 900}, locale="ru-RU"
+            user_agent=get_random_ua(), viewport={"width": 1440, "height": 900}, locale="ru-RU"
         )
         page = await context.new_page()
         await apply_stealth(page, cfg)
@@ -1145,9 +1185,29 @@ async def collect_new(
         new_items = [it for it in all_items if normalize_url(it["Ссылка"]) not in prev_urls]
         print(f"\n  realt: листинг {len(all_items)} | новых {len(new_items)}")
         if cfg.fetch_details and new_items:
-            detail_page = await context.new_page()
+            detail_context = await browser.new_context(
+                user_agent=get_random_ua(),
+                viewport={"width": random.choice([1440, 1536, 1920]),
+                          "height": random.choice([900, 864, 1080])},
+                locale="ru-RU",
+            )
+            detail_page = await detail_context.new_page()
             await apply_stealth(detail_page, cfg)
             for i, item in enumerate(new_items, 1):
+                if i > 1 and i % 500 == 0:  # анти-бан: сброс контекста → новый fingerprint
+                    if cfg.verbose:
+                        print("    🔄 сброс контекста (fingerprint)")
+                    await detail_page.close()
+                    await detail_context.close()
+                    detail_context = await browser.new_context(
+                        user_agent=get_random_ua(),
+                        viewport={"width": random.choice([1440, 1536, 1920]),
+                                  "height": random.choice([900, 864, 1080])},
+                        locale="ru-RU",
+                    )
+                    detail_page = await detail_context.new_page()
+                    await apply_stealth(detail_page, cfg)
+                    await asyncio.sleep(random.uniform(3, 6))
                 try:
                     await fetch_details(detail_page, item, cfg)
                 except Exception as e:  # noqa: BLE001
@@ -1162,7 +1222,7 @@ async def collect_new(
                     except Exception as e:  # noqa: BLE001
                         print(f"    ⚠ чекпойнт не записан: {e}")
                 await asyncio.sleep(random.uniform(2, 4))
-            await detail_page.close()
+            await detail_context.close()
         await browser.close()
     return new_items
 
@@ -1201,7 +1261,7 @@ async def run_scrape(cfg: RunConfig) -> None:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=cfg.headless)
         context = await browser.new_context(
-            user_agent=UA,
+            user_agent=get_random_ua(),
             viewport={"width": 1440, "height": 900},
             locale="ru-RU",
         )
@@ -1233,9 +1293,29 @@ async def run_scrape(cfg: RunConfig) -> None:
         done_new: list = []
         if cfg.fetch_details and new_items:
             print(f"\n🔍 Загружаю детали для {len(new_items)} новых...")
-            detail_page = await context.new_page()
+            detail_context = await browser.new_context(
+                user_agent=get_random_ua(),
+                viewport={"width": random.choice([1440, 1536, 1920]),
+                          "height": random.choice([900, 864, 1080])},
+                locale="ru-RU",
+            )
+            detail_page = await detail_context.new_page()
             await apply_stealth(detail_page, cfg)
             for i, item in enumerate(new_items, 1):
+                if i > 1 and i % 500 == 0:  # анти-бан: сброс контекста → новый fingerprint
+                    if cfg.verbose:
+                        print("    🔄 сброс контекста (fingerprint)")
+                    await detail_page.close()
+                    await detail_context.close()
+                    detail_context = await browser.new_context(
+                        user_agent=get_random_ua(),
+                        viewport={"width": random.choice([1440, 1536, 1920]),
+                                  "height": random.choice([900, 864, 1080])},
+                        locale="ru-RU",
+                    )
+                    detail_page = await detail_context.new_page()
+                    await apply_stealth(detail_page, cfg)
+                    await asyncio.sleep(random.uniform(3, 6))
                 addr = (item.get("Адрес") or item.get("Ссылка") or "")[:50]
                 print(f"  [{i}/{len(new_items)}] {addr}...", end=" ")
                 try:
@@ -1258,7 +1338,7 @@ async def run_scrape(cfg: RunConfig) -> None:
                     except Exception as e:
                         print(f"    ⚠ чекпойнт не записан: {e}")
                 await asyncio.sleep(random.uniform(2, 4))
-            await detail_page.close()
+            await detail_context.close()
         elif not new_items:
             print("\n✨ Новых объявлений нет, детали не нужны.")
         else:

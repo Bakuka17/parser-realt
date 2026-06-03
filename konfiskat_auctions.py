@@ -105,9 +105,10 @@ def parse_detail(url: str, html: str) -> dict | None:
     if mz:
         it["Задаток"] = A.parse_price(mz.group(0))
 
-    # адрес: сперва из заголовка+начала текста, чтобы не цеплять мусор со всей страницы
+    # адрес: сперва из заголовка (адрес объекта обычно прямо в названии лота),
+    # затем — из начала текста (хвост шапки с адресом организатора цепляем в последнюю очередь)
     blob = title + ". " + text[:1500]
-    addr = A.extract_address(blob) or A.extract_address(text)
+    addr = A.extract_address(title) or A.extract_address(blob) or A.extract_address(text)
     if addr:
         it["Адрес"] = addr
     if re.search(r"минск", blob, re.I):

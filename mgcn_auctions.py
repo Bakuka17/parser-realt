@@ -40,6 +40,42 @@ def parse_list(html: str) -> list[dict]:
     return out
 
 
+def mgcn_address(title: str, text: str) -> str:
+    """Адрес ОБЪЕКТА (не офиса MGCN!). Каркас DeepSeek, исправлен мной (10/10 + живые):
+    приоритет — маркер «расположен… по адресу: …» (режем по «Наш адрес»/футеру, не по
+    точке-сокращению), иначе — из заголовка «на ул. X, N в Городе» → «г. Город, ул. X, N»."""
+    m = re.search(r"располож\w*\s+по\s+адресу:\s*", text, re.I | re.S)
+    if m:
+        chunk = text[m.end():m.end() + 140]
+        cut = re.search(r"Наш\s+адрес|Как\s+проехать|Реквизит|Телефон", chunk, re.I)
+        if cut:
+            chunk = chunk[:cut.start()]
+        chunk = re.sub(r"\s*\.\s*$", "", chunk.strip()).strip(" .,;")
+        if chunk:
+            return chunk
+    mt = re.search(r"на\s+(ул\.|пр\.|пр-т|просп\.|пер\.|пл\.)\s+([^,]+?)\s*,?\s*"
+                   r"(\d+[А-Яа-я]?)\s+в\s+([А-Яа-я]+)", title, re.I)
+    if mt:
+        cmap = {"Минске": "Минск", "Гомеле": "Гомель", "Бресте": "Брест",
+                "Витебске": "Витебск", "Могилёве": "Могилёв", "Гродно": "Гродно"}
+        city = cmap.get(mt.group(4).strip().rstrip("."), mt.group(4).strip().rstrip("."))
+        return f"г. {city}, {mt.group(1)} {mt.group(2).strip()}, {mt.group(3)}"
+    return ""
+
+
+def mgcn_area(title: str, text: str):
+    """Площадь объекта в м² (float) из заголовка/текста; гектары (га) не берёт."""
+    pat = re.compile(r"(?:площадью\s+)?(\d[\d\s]*[.,]?\d*)\s*(?:кв\.?\s*м|м2|м²)", re.I)
+    for s in (title, text):
+        mt = pat.search(s)
+        if mt:
+            try:
+                return float(re.sub(r"\s", "", mt.group(1)).replace(",", "."))
+            except ValueError:
+                pass
+    return None
+
+
 def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     it = A.blank_item(SOURCE)
     text = A.clean(html)
@@ -61,14 +97,15 @@ def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     it["Организатор"] = A.clean(mo.group(1)) if mo else "ГП «МГЦН»"
     # телефон
     it["Телефон"] = A.extract_phones(html)
-    # адрес/площадь — общие хелперы (заголовок + текст деталки)
-    blob = title + ". " + text[:1500]
-    addr = A.extract_address(blob)
-    if addr:
-        it["Адрес"] = addr
-    if re.search(r"минск", blob, re.I):
+    # адрес/площадь — mgcn-специфичные (А.extract_address брал ОФИС фирмы)
+    addr = mgcn_address(title, text)
+    it["Адрес"] = addr
+    mcity = re.search(r"г\.\s*([А-ЯЁ][а-яё-]+)", addr)
+    if mcity:
+        it["Район / Город"] = "г. " + mcity.group(1)
+    elif re.search(r"минск", title, re.I):
         it["Район / Город"] = "г. Минск"
-    area = A.extract_area(title) or A.extract_area(text[:800])
+    area = mgcn_area(title, text)
     if area:
         it["Площадь, м²"] = str(area)
     it["Ссылка"] = A.norm_url(card["url"])
@@ -104,7 +141,7 @@ def collect(prev_db: dict, full: bool) -> list[dict]:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=A.DEFAULT_OUT)
+    ap.add_argument("--out", type=Path, default=Path("auctions_mgcn.xlsx"))
     ap.add_argument("--full", action="store_true")
     cfg = ap.parse_args()
     cfg.out = cfg.out.expanduser().resolve()

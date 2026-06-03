@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 # сборка swift
 RealtyApp/.build/
+
+# runtime-логи
+logs/

@@ -176,13 +176,53 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ## Проект «Аукционы» (в работе, 01.06.2026)
 
 Отдельная ветка: парсеры аукционных площадок РБ. Каркас — `auctions_common.py`
-(схема AUCTION_COLUMNS, fetch, parse_price/parse_date, extract_area/extract_address/
-extract_start_price/classify_object_type/extract_lot_number, write_excel→лист «Аукционы»,
-авто-колонка «Тип объекта»). Пишут в отдельные `auctions_{site}.xlsx`, потом
-`merge_auctions.py` сводит в `auctions_realty.xlsx` с дедупом по URL.
-Образец парсера: `mgcn_auctions.py`.
+(схема AUCTION_COLUMNS, fetch, parse_price/parse_date/**normalize_price**, extract_area/
+extract_address/**extract_re_address**/extract_start_price/**clean_auction_description**/
+classify_object_type/extract_lot_number, write_excel→лист «Аукционы», авто-колонка «Тип объекта»).
+Пишут в отдельные `auctions_{site}.xlsx`, потом `merge_auctions.py` сводит в `auctions_realty.xlsx`
+с дедупом по URL. Образец парсера: `mgcn_auctions.py`.
 
-Готовые парсеры (серверный HTML): mgcn(296), ipmtorgi(891), torgi24(83), auction24(36, событийный),
-gki(16, грязный), bks(16, грязный — объект из URL-слага). В очереди (мои): beltorgi (реверс API),
-torgi.gov (JS), eauction, butb, deloocenka, konfiskat. Цена тянется через `extract_start_price`
-(прицельно по «начальная/стартовая цена … число … BYN/бел.руб», схлопывает переносы строк).
+**Главная команда аукционов:** `./bin/python collect_auctions.py` — единый оркестратор:
+одна команда гоняет ВСЕ площадки (каждую отдельным процессом) + merge → один свод.
+Флаги: `--sources mgcn,torgigov`, `--skip beltorgi`, `--mgcn-full`, `--no-merge`.
+Его же зовёт `scheduled_run.sh` (недельный launchd).
+
+Доп. хелперы (через делегирование Qwen/DeepSeek, проверены/исправлены мной):
+`normalize_price` (Qwen, 17/17 — строка цены → (float, валюта)); `extract_re_address`
+(DeepSeek→правка, 10/10 — адрес ОБЪЕКТА, не офиса); `clean_auction_description`
+(DeepSeek→правка — срезает НДС-болванку/извещение/контакты у описаний torgi.gov/deloocenka).
+mgcn использует свои `mgcn_address`/`mgcn_area` (брал офис «К.Маркса 39» — пофикшено,
+адрес 8→30%, площадь 15→86%).
+
+Цена тянется через `extract_start_price` (прицельно по «начальная/стартовая цена … число …
+BYN/бел.руб», схлопывает переносы строк).
+
+**Свод `auctions_realty.xlsx` = 1859 уникальных лотов (10 источников, обновлено 02.06.2026):**
+ipmtorgi(891), **torgi.gov(350)**, mgcn(296), eauction(142), torgi24(83), auction24(36),
+**deloocenka(23)**, bks(16), gki(16), konfiskat(6). beltorgi — 0 (см. ниже).
+
+**Парсеры по типу:**
+- Серверный HTML: mgcn, ipmtorgi, torgi24, auction24(событийный), gki/bks(грязные),
+  konfiskat, **deloocenka** (deloocenka.by/aukzioni — оценочная фирма в Гомеле; вкладки
+  #menu1/#menu2 активные, #menu3 проданное-пропускаем; позитивный фильтр недвижимости
+  по ТИПУ из заголовка, дата только из листинга).
+- Серверный список + JS: **eauction** (только разделы `/nedvizhimost/` — в общем `/commerce/`
+  намешаны авто/станки!).
+- **torgigov** (`torgigov_auctions.py`) — ЧИСТЫЙ JSON-API `api.torgi.gov.by/api/lots?category=1`
+  (=недвижимость). Сервер НЕ фильтрует активные → лоты сорт. по auctionStart убыв., берём
+  state∈{AuctionPublished,AuctionPublishedEgrsb} с page=1, стоп после 3 пустых страниц.
+  ⚠ **`initialPrice` в КОПЕЙКАХ → /100 = BYN** (подтверждено правдоподобием). Организатор/телефон
+  API не отдаёт (только id) — пусто, контакт = ССЫЛКА на аукцион (торги через площадку, как kufar).
+  Заполняет колонку **«Описание»** (поле `description` из API, срезана болванка-преамбула про НДС) —
+  для torgi.gov важны лот + описание. Колонка «Описание» добавлена в AUCTION_COLUMNS (перед «Хэш»).
+- **beltorgi** (`beltorgi_auctions.py`) — ЗАО «Белреализация», банкротные торги. Листинг через
+  AJAX → рендер Playwright (`/aukciony/?status=...`); деталь `lot-{id}-{n}.html` серверная
+  (адрес/задаток/организатор/телефон есть, СТАРТ-ЦЕНА динамическая=JS, часто пусто).
+  Фильтр недвижимости по 2-й хлебной крошке. **Недвиж-разделы сейчас ПУСТЫ → 0 лотов**,
+  парсер подхватит, когда появятся.
+- **butb** — отложено: торги на SPA `et.butb.by`, наличие недвижимости не подтверждено.
+
+⚠ **Субагенты Claude Code в фоне НЕ могут запускать `./bin/python`** — права из
+`.claude/settings.local.json` читаются при СТАРТЕ сессии и не перечитываются на лету для
+субагентов. Все 4 субагента (beltorgi/torgi.gov/butb/deloocenka) сдались на стене разрешений →
+парсеры написаны мной напрямую. Для будущих субагентов нужен рестарт Claude Code после правки прав.

@@ -32,7 +32,12 @@ import auctions_common as A
 
 SOURCE = "e-auction.by"
 BASE = "https://e-auction.by"
-LIST_URL = "https://e-auction.by/commerce/"
+# Только разделы недвижимости. В общем /commerce/ намешаны авто, спецтехника,
+# станки и оборудование — их НЕ берём (это инструмент по недвижимости).
+LIST_URLS = [
+    "https://e-auction.by/nedvizhimost/",           # осн. каталог недвижимости (серии 1-/3-/5-)
+    "https://e-auction.by/commerce/nedvizhimost/",  # коммерческие торги, недвижимость (серия 9-)
+]
 OUT = Path("auctions_eauction.xlsx")
 MAX_PAGES = 50  # предохранитель от бесконечной пагинации
 
@@ -80,33 +85,35 @@ def find_next_page(html: str, current: int) -> str | None:
 
 
 def collect_list_pages() -> list[dict]:
-    """Обходит все страницы списка, собирает уникальные карточки (дедуп по norm_url)."""
+    """Обходит пагинацию каждого раздела недвижимости из LIST_URLS,
+    собирает уникальные карточки (общий дедуп по norm_url между разделами)."""
     cards: list[dict] = []
     seen: set[str] = set()
-    page = 1
-    url = LIST_URL
-    while url and page <= MAX_PAGES:
-        print(f"→ список, стр.{page}: {url}")
-        html = A.fetch(url)
-        if not html:
-            break
-        page_cards = parse_list(html)
-        new_on_page = 0
-        for c in page_cards:
-            nu = A.norm_url(c["url"])
-            if nu in seen:
-                continue
-            seen.add(nu)
-            cards.append(c)
-            new_on_page += 1
-        print(f"  карточек на странице: {len(page_cards)} (новых уникальных: {new_on_page})")
-        if new_on_page == 0:
-            break  # страница без новых лотов — конец
-        nxt = find_next_page(html, page)
-        if not nxt:
-            break
-        url = nxt
-        page += 1
+    for root in LIST_URLS:
+        page = 1
+        url = root
+        while url and page <= MAX_PAGES:
+            print(f"→ {root} стр.{page}: {url}")
+            html = A.fetch(url)
+            if not html:
+                break
+            page_cards = parse_list(html)
+            new_on_page = 0
+            for c in page_cards:
+                nu = A.norm_url(c["url"])
+                if nu in seen:
+                    continue
+                seen.add(nu)
+                cards.append(c)
+                new_on_page += 1
+            print(f"  карточек на странице: {len(page_cards)} (новых уникальных: {new_on_page})")
+            if new_on_page == 0:
+                break  # страница без новых лотов — конец раздела
+            nxt = find_next_page(html, page)
+            if not nxt:
+                break
+            url = nxt
+            page += 1
     return cards
 
 

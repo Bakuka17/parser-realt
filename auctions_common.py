@@ -45,6 +45,7 @@ AUCTION_COLUMNS = [
     "Ссылка",
     "Источник",
     "Фото URL",
+    "Описание",           # полный текст лота (где доступно; у torgi.gov — из API)
     "Хэш",
 ]
 
@@ -109,6 +110,38 @@ _MONTHS = {
 }
 
 
+def normalize_price(raw: str) -> "tuple[Optional[float], str]":
+    """'151 680.00 BYN' → (151680.0, 'BYN'); '25 000 $' → (25000.0, 'USD'); '999Br' → (999.0,'BYN');
+    'договорная'/'по запросу'/''/None → (None, ''). Валюта ∈ {BYN,USD,EUR,RUB,''}.
+    Берёт ПЕРВОЕ число и ПЕРВУЮ валюту. Каркас Qwen v2 (17/17 тестов), принят как есть."""
+    if raw is None:
+        return None, ""
+    s = str(raw).strip()
+    if not re.search(r"\d", s):
+        return None, ""
+    m_num = re.search(r"(\d+(?:[\s\xa0]?\d+)*(?:[.,]\d+)?)", s)
+    if not m_num:
+        return None, ""
+    try:
+        amount = float(m_num.group(1).replace(" ", "").replace("\xa0", "").replace(",", "."))
+    except ValueError:
+        return None, ""
+    cm = re.search(r"(?i)(BYN|Br|бел\.?\s*руб|белорус.*?руб|USD|\$|долл|EUR|€|евро|"
+                   r"RUB|рос\.?\s*руб|россий.*?руб)", s)
+    currency = ""
+    if cm:
+        c = cm.group(1).lower()
+        if "byn" in c or c == "br" or "бел" in c:
+            currency = "BYN"
+        elif "usd" in c or c == "$" or "долл" in c:
+            currency = "USD"
+        elif "eur" in c or c == "€" or "евро" in c:
+            currency = "EUR"
+        elif "rub" in c or "рос" in c:
+            currency = "RUB"
+    return amount, currency
+
+
 def parse_date(text: str) -> str:
     """'23 июля 2026' / '23.07.2026' / '23 ліпеня 2026' → '2026-07-23'. Иначе ''."""
     if not text:
@@ -163,8 +196,9 @@ def extract_address(text: str) -> Optional[str]:
     # 1) [Область обл.,] г. Город, ул./пр./пер. Улица, дом  — захват С названием области
     p1 = (r"((?:[А-ЯЁ][а-яё]+\s+обл\.?,?\s+)?"
           r"г\.\s*[А-ЯЁ][а-яё-]+\s*,?\s+"
-          r"(?:ул\.|улица|пр\.|просп\.|проспект|пер\.|пл\.)\s+[А-ЯЁа-яё\-\. ]+?"
-          r"\s*,?\s*\d+[А-ЯЁа-яё]*(?:/\d+)?)")
+          r"(?:ул\.|улица|пр\.|пр-т|пр-кт|просп\.|проспект|пер\.|пл\.)\s*"
+          r"[А-ЯЁа-яё0-9][А-ЯЁа-яё0-9\-\. ]*?"
+          r"\s*,?\s*(?:д\.?\s*)?\d+[А-ЯЁа-яё]*(?:/\d+)?)")
     m = re.search(p1, norm)
     if m:
         return m.group(1).strip().rstrip(",")
@@ -177,6 +211,52 @@ def extract_address(text: str) -> Optional[str]:
     if m:
         return m.group(1).strip()
     return None
+
+
+# ── расширенный извлекатель адреса (каркас DeepSeek, исправлен мной: 10/10) ────
+_ADDR_OFFICE = "К.Маркса 39"   # офис MGCN — НИКОГДА не отдавать как адрес объекта
+_ADDR_STOP = re.compile(
+    r"Наш\s+адрес|Как\s+проехать|Реквизит|Телефон|тел\.|факс|e-mail|организатор|контакт", re.I)
+_ADDR_STREET = r"(?:ул\.|улица|пр\.|пр-т|пр-кт|просп\.|проспект|пер\.|пл\.|б-р|бульвар|ш\.|тракт)"
+_ADDR_CITY = {"минске": "Минск", "гомеле": "Гомель", "бресте": "Брест", "витебске": "Витебск",
+              "могилёве": "Могилёв", "могилеве": "Могилёв", "гродно": "Гродно", "бобруйске": "Бобруйск"}
+
+
+def _addr_cut(s: str) -> str:
+    m = _ADDR_STOP.search(s)
+    if m:
+        s = s[:m.start()]
+    m2 = re.search(r"(?<=[А-Яа-яёЁ]{3})\.\s+[А-ЯЁ]", s)  # граница предложения (не сокращение)
+    if m2:
+        s = s[:m2.start()]
+    return re.sub(r"\s+", " ", s).strip(" .,;")
+
+
+def extract_re_address(text: str, title: str = "") -> str:
+    """Адрес ОБЪЕКТА недвижимости (НЕ офиса/организатора, НЕ юр-болванки). "" если нет.
+    Приоритет: маркер «расположен… по адресу:» → шаблон в заголовке «на ул. X, N в Городе»
+    → полный адрес в тексте (область/район/НП/улица/дом, с поддержкой «д.NN», «корп. N»)."""
+    text = text or ""
+    m = re.search(r"располож\w*\s+по\s+адресу:\s*", text, re.I)
+    if m:
+        a = _addr_cut(text[m.end():m.end() + 170])
+        if a and _ADDR_OFFICE not in a:
+            return a
+    mt = re.search(r"на\s+(" + _ADDR_STREET + r")\s+([^,]+?)\s*,?\s*"
+                   r"(\d+[А-Яа-я]?(?:/\d+)?)\s+в\s+([А-Яа-яёЁ]+)", title, re.I)
+    if mt:
+        c = _ADDR_CITY.get(mt.group(4).lower().rstrip("."), mt.group(4).rstrip("."))
+        return f"г. {c}, {mt.group(1)} {mt.group(2).strip()}, {mt.group(3)}"
+    body = _ADDR_STOP.split(text)[0]  # отрезаем офис/контакты до поиска
+    fp = re.search(r"(?:[А-Я][а-яё]+\s+обл\.?,?\s*)?(?:[А-Я][а-яё-]+\s+р-н,?\s*)?"
+                   r"(?:г\.|аг\.|д\.|гп\.)\s*[А-Я][а-яё-]+,?\s*" + _ADDR_STREET +
+                   r"\s*[А-Яа-яёЁ0-9\-\.\s]+?,?\s*(?:д\.\s*)?\d+[А-Яа-яёЁ]?(?:/\d+)?"
+                   r"(?:\s*,\s*корп\.\s*\d+)?", body, re.I)
+    if fp:
+        a = re.sub(r"\s+", " ", fp.group(0)).strip(" .,;")
+        if a and _ADDR_OFFICE not in a:
+            return a
+    return ""
 
 
 # ── классификация типа объекта / номер лота (логика от Qwen + фиксы) ──────────
@@ -228,15 +308,58 @@ def extract_area_multi(text: str) -> list[float]:
 PHONE_RE = re.compile(r"\+?375[\s\-()]*\d{2}[\s\-()]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}")
 
 
+def _is_placeholder_phone(norm: str) -> bool:
+    """Шаблон-заглушка из вёрстки сайта: +375 99 999-99-99, 000-00-00 и т.п.
+    Признак — абонентская часть из одной повторяющейся цифры."""
+    digits = re.sub(r"\D", "", norm)
+    body = digits[3:] if digits.startswith("375") else digits
+    if len(body) < 6:
+        return True
+    return len(set(body)) <= 1
+
+
 def extract_phones(text: str, limit: int = 3) -> str:
     found = []
     for p in PHONE_RE.findall(text or ""):
         norm = re.sub(r"[^\d+]", "", p)
+        if _is_placeholder_phone(norm):
+            continue
         if norm not in [re.sub(r"[^\d+]", "", x) for x in found]:
             found.append(p.strip())
         if len(found) >= limit:
             break
     return ", ".join(found)
+
+
+# ── очистка описания лота (каркас от DeepSeek, исправлено и оттестировано мной: 9/9) ──
+_DESC_NDS = re.compile(r"Внимание!\s*Цена\s+лота.*?завершения\s+торгов\.\s*", re.I | re.S)
+# извещение: до «в HH-MM», затем либо «.» (стиль torgi.gov), либо хвост до
+# «Наименование предмет… торгов N» (стиль deloocenka: адрес организатора + шапка таблицы)
+_DESC_NOTICE = re.compile(
+    r"^.*?\bизвеща(?:ет|ют)\s+о\s+проведении\b.*?\bв\s+\d{1,2}[-:]\d{2}\b"
+    r"(?:\s*\.|.*?Наименовани\w*\s+предмет\w*\s+торгов\s*№?\s*\d*\.?)?\s*", re.I | re.S)
+_DESC_CONTACTS = re.compile(
+    r"Телефон\w*\s+для\s+справок\s*:?.*?"
+    r"(?=Кафе|Магазин|Здани|Помещени|Квартир|Дом\b|Коттедж|Гараж|Склад|Офис|Объект|Земельн|"
+    r"Капитальн|Сооружени|Строени|Комплекс|Предлага|$)", re.I | re.S)
+# телефон РБ: +375 + 9 цифр с любыми разделителями (мобильный 2-знач. код или город 3-знач.)
+_DESC_PHONE = re.compile(r"\+?375(?:[\s()\-]*\d){9}")
+
+
+def clean_auction_description(raw: str) -> str:
+    """Сырое описание лота → описание ОБЪЕКТА: срезает юр-преамбулу про НДС
+    («Внимание! Цена лота…завершения торгов.»), аукционное извещение организатора
+    («ООО X … извещает о проведении … в HH-MM.») и контакты («Телефон для справок: …»,
+    номера +375…). Схлопывает пробелы, чистит края (сохраняя финальную точку), режет до 1500."""
+    if not raw:
+        return ""
+    t = _DESC_NDS.sub("", raw)
+    t = _DESC_NOTICE.sub("", t)
+    t = _DESC_CONTACTS.sub("", t)
+    t = _DESC_PHONE.sub("", t)
+    t = re.sub(r"\s+", " ", t)
+    t = re.sub(r"^[\s.\-–—№]+", "", t).rstrip()
+    return t[:1500].rstrip()
 
 
 def make_hash(url: str, *parts: str) -> str:
@@ -356,7 +479,7 @@ def write_excel(items: list[dict], path: Path, prev_hashes: Optional[set] = None
     widths = {"Сохранить": 10, "Тип торгов": 14, "Тип объекта": 13, "Объект": 40, "Адрес": 28,
               "Район / Город": 16, "Площадь, м²": 12, "Начальная цена": 16,
               "Задаток": 14, "Дата аукциона": 14, "Организатор": 24, "Телефон": 20,
-              "Ссылка": 40, "Источник": 16, "Фото URL": 30, "Хэш": 14}
+              "Ссылка": 40, "Источник": 16, "Фото URL": 30, "Описание": 70, "Хэш": 14}
     for ci, name in enumerate(AUCTION_COLUMNS, 1):
         ws.column_dimensions[get_column_letter(ci)].width = widths.get(name, 14)
     ws.auto_filter.ref = f"A2:{get_column_letter(len(AUCTION_COLUMNS))}{max(row-1,2)}"
