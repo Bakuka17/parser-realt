@@ -92,11 +92,18 @@ def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     mz = re.search(r"[Зз]адат\w+.{0,60}?(\d[\d\s]*[.,]?\d*)\s*(?:BYN|бел\.?\s*руб|Br)", text)
     if mz:
         it["Задаток"] = A.parse_price(mz.group(0))
-    # организатор
-    mo = re.search(r"[Оо]рганизатор[^:]*:\s*([^.]{5,80})", text)
+    # организатор (всегда ГП «МГЦН») — имя до «…», без адреса офиса (улучшено vs Qwen)
+    mo = re.search(r"[Оо]рганизатор[^:]*:\s*([^.,\n]*«[^»]+»|[^.,\n]{5,70})", text)
     it["Организатор"] = A.clean(mo.group(1)) if mo else "ГП «МГЦН»"
-    # телефон
-    it["Телефон"] = A.extract_phones(html)
+    # телефон: A.extract_phones возвращает СТРОКУ; фолбэк «Телефон: …» (идея Qwen,
+    # но БЕЗ его бага ", ".join(строка) — это рвало номер по символам)
+    phones = A.extract_phones(html)
+    if not phones:
+        pm = re.search(r"(?:Телефон|Тел\.|Контактный телефон)[^:]*:\s*(\+?\d[\d\s\-()]{7,20})",
+                       text, re.I)
+        if pm:
+            phones = A.clean(pm.group(1))
+    it["Телефон"] = phones
     # адрес/площадь — mgcn-специфичные (А.extract_address брал ОФИС фирмы)
     addr = mgcn_address(title, text)
     it["Адрес"] = addr
