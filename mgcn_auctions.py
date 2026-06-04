@@ -107,7 +107,7 @@ def _table_money_range(html: str, match) -> str:
         rows = [tr.find_all(["td", "th"]) for tr in tbl.find_all("tr")]
         hdr_row = hdr_col = None
         best = 99
-        for ri, cells in enumerate(rows):
+        for ri, cells in enumerate(rows[:3]):  # шапка только в первых строках (не в дата-ячейках!)
             for ci, c in enumerate(cells):
                 t = re.sub(r"\s+", " ", c.get_text(" ", strip=True)).lower()
                 if match(t):
@@ -119,11 +119,14 @@ def _table_money_range(html: str, match) -> str:
         for cells in rows[hdr_row + 1:]:
             if len(cells) <= hdr_col:
                 continue
-            p = A.parse_price(cells[hdr_col].get_text(" ", strip=True))
+            cell_txt = cells[hdr_col].get_text(" ", strip=True)
+            if "%" in cell_txt or "процент" in cell_txt.lower():
+                continue  # это шаг/процент, не цена
+            p = A.parse_price(cell_txt)
             if p:
                 try:
                     n = float(p.split()[0])
-                    if n > 500:  # отсечь проценты/копейки/мусор
+                    if n > 1:  # порог низкий: цена ПРАВА аренды бывает мелкой (десятки BYN)
                         vals.append(n)
                 except ValueError:
                     pass
