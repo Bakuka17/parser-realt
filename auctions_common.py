@@ -331,6 +331,46 @@ def extract_phones(text: str, limit: int = 3) -> str:
     return ", ".join(found)
 
 
+# ── канон телефонов РБ (каркас Qwen 11/11 + моя защита от фейков; QA на живой базе) ──
+_BY_CODE2 = {"17", "25", "29", "33", "44"}                 # Минск-город + мобильные операторы
+_BY_CODE3 = {"152", "162", "212", "222", "232"}            # обл. центры (Гродно/Брест/Витебск/Могилёв/Гомель)
+_PHONE_CAND = re.compile(r"\+?\d[\d\s()\-]{6,}\d")
+
+
+def _valid_nat9(d: str) -> bool:
+    """9-значный нац. номер с валидным кодом РБ (моб. 2-знач. или гор. 3-знач.)."""
+    return len(d) == 9 and (d[:2] in _BY_CODE2 or d[:3] in _BY_CODE3)
+
+
+def normalize_phones(raw: str) -> list[str]:
+    """Все телефоны РБ из строки → канон '+375XXXXXXXXX', дедуп, порядок сохранён.
+    Бара 9-значное число принимаем ТОЛЬКО с валидным кодом РБ — иначе цены/УНП/инвентарные
+    номера превращались бы в фейк-телефоны (поймано на QA версии Qwen, где правило было len==9)."""
+    out, seen = [], set()
+    for m in _PHONE_CAND.findall(raw or ""):
+        d = re.sub(r"\D", "", m)
+        if len(d) == 12 and d.startswith("375"):
+            norm = "+" + d
+        elif len(d) == 11 and d.startswith("80"):
+            norm = "+375" + d[2:] if _valid_nat9(d[2:]) else None
+        elif len(d) == 10 and d.startswith("0"):           # формат (017) 360-42-22
+            norm = "+375" + d[1:] if _valid_nat9(d[1:]) else None
+        elif _valid_nat9(d):
+            norm = "+375" + d
+        else:
+            norm = None
+        if norm and norm not in seen:
+            seen.add(norm)
+            out.append(norm)
+    return out
+
+
+def canon_phones(raw: str) -> str:
+    """Поле «Телефон» → канон через запятую; если канона нет — вернуть исходное (не терять данные)."""
+    nums = normalize_phones(raw)
+    return ", ".join(nums) if nums else (raw or "")
+
+
 # ── очистка описания лота (каркас от DeepSeek, исправлено и оттестировано мной: 9/9) ──
 _DESC_NDS = re.compile(r"Внимание!\s*Цена\s+лота.*?завершения\s+торгов\.\s*", re.I | re.S)
 # извещение: до «в HH-MM», затем либо «.» (стиль torgi.gov), либо хвост до
@@ -464,6 +504,8 @@ def write_excel(items: list[dict], path: Path, prev_hashes: Optional[set] = None
             new_count += 1
         for ci, name in enumerate(AUCTION_COLUMNS, 1):
             val = it.get(name, "")
+            if name == "Телефон" and val:
+                val = canon_phones(str(val))
             cc = ws.cell(row, ci, val)
             cc.alignment = Alignment(vertical="top", wrap_text=True)
             cc.border = cb
