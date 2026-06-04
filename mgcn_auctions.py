@@ -10,6 +10,7 @@
 from __future__ import annotations
 import argparse, re, time, random
 from pathlib import Path
+from bs4 import BeautifulSoup
 import auctions_common as A
 
 SOURCE = "mgcn.by"
@@ -76,6 +77,60 @@ def mgcn_area(title: str, text: str):
     return None
 
 
+def _table_money_range(html: str, match) -> str:
+    """Диапазон сумм из колонки HTML-таблицы, чья ячейка-шапка проходит match(text_lower).
+    У mgcn многолотовые аукционы — таблица, где у КАЖДОГО лота своя строка; шапка часто
+    во ВТОРОЙ строке (первая — colspan «Сведения о…»), поэтому сканируем все строки.
+    Среди подошедших шапок приоритет «…предмета аукциона» (итог с НДС, а не отдельно
+    квартира/машино-место). Возвращает 'lo–hi BYN' (или 'n BYN' при одном лоте), либо ''."""
+    vals: list[float] = []
+    soup = BeautifulSoup(html, "lxml")
+    for tbl in soup.find_all("table"):
+        rows = [tr.find_all(["td", "th"]) for tr in tbl.find_all("tr")]
+        hdr_row = hdr_col = None
+        best = 99
+        for ri, cells in enumerate(rows):
+            for ci, c in enumerate(cells):
+                t = re.sub(r"\s+", " ", c.get_text(" ", strip=True)).lower()
+                if match(t):
+                    score = 0 if ("предмет" in t and "аукцион" in t) else 1
+                    if score < best:
+                        best, hdr_row, hdr_col = score, ri, ci
+        if hdr_row is None:
+            continue
+        for cells in rows[hdr_row + 1:]:
+            if len(cells) <= hdr_col:
+                continue
+            p = A.parse_price(cells[hdr_col].get_text(" ", strip=True))
+            if p:
+                try:
+                    n = float(p.split()[0])
+                    if n > 500:  # отсечь проценты/копейки/мусор
+                        vals.append(n)
+                except ValueError:
+                    pass
+    if not vals:
+        return ""
+    lo, hi = min(vals), max(vals)
+    return f"{lo:.0f} BYN" if lo == hi else f"{lo:.0f}–{hi:.0f} BYN"
+
+
+def mgcn_price(html: str, text: str) -> str:
+    """Начальная цена: одиночный лот — проза («Начальная цена …: 1 896 000,0 бел. руб.»);
+    многолотовый — диапазон по колонке «Начальная цена…» из таблицы."""
+    return A.extract_start_price(text) or _table_money_range(
+        html, lambda t: "начальн" in t and "цен" in t)
+
+
+def mgcn_deposit(html: str, text: str) -> str:
+    """Задаток: многолотовый — диапазон по колонке «Размер задатка»; фолбэк — проза."""
+    r = _table_money_range(html, lambda t: "задат" in t)
+    if r:
+        return r
+    m = re.search(r"[Зз]адат\w+.{0,60}?(\d[\d\s]*[.,]?\d*)\s*(?:BYN|бел\.?\s*руб|Br)", text)
+    return A.parse_price(m.group(0)) if m else ""
+
+
 def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     it = A.blank_item(SOURCE)
     text = A.clean(html)
@@ -84,14 +139,10 @@ def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     it["Объект"] = title
     # дата: из карточки, иначе из текста
     it["Дата аукциона"] = A.parse_date(card.get("date_raw", "")) or A.parse_date(text)
-    # начальная цена
-    mp = re.search(r"Начальн\w+\s+цен\w+[^.]*?([\d\s]+[.,]?\d*)\s*(?:BYN|бел\.?\s*руб)", text, re.I)
-    if mp:
-        it["Начальная цена"] = A.parse_price(mp.group(0))
-    # задаток (сумма обычно идёт ПОСЛЕ слова, в пределах ~60 симв)
-    mz = re.search(r"[Зз]адат\w+.{0,60}?(\d[\d\s]*[.,]?\d*)\s*(?:BYN|бел\.?\s*руб|Br)", text)
-    if mz:
-        it["Задаток"] = A.parse_price(mz.group(0))
+    # начальная цена: проза (одиночный лот) → таблица многолотового аукциона (диапазон)
+    it["Начальная цена"] = mgcn_price(html, text)
+    # задаток: таблица многолотового аукциона (колонка «Размер задатка») → проза
+    it["Задаток"] = mgcn_deposit(html, text)
     # организатор (всегда ГП «МГЦН») — имя до «…», без адреса офиса (улучшено vs Qwen)
     mo = re.search(r"[Оо]рганизатор[^:]*:\s*([^.,\n]*«[^»]+»|[^.,\n]{5,70})", text)
     it["Организатор"] = A.clean(mo.group(1)) if mo else "ГП «МГЦН»"
