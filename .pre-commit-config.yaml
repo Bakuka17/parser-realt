@@ -1,0 +1,8 @@
+# Опциональный гейт линтера на коммит. Правила — в ruff.toml.
+# Активировать: `uv tool install pre-commit && pre-commit install`
+# (без активации файл просто документирует, чем линтуем; вручную: `uvx ruff check .`)
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.15
+    hooks:
+      - id: ruff   # только lint (без --fix и без ruff-format, чтобы не ломать компактный стиль)

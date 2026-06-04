@@ -209,13 +209,10 @@ def parse_detail(html: str, card: dict) -> dict:
     loc = _spec_value(soup, "Местоположение")
     if loc:
         it["Адрес"] = loc
-        addr_blob = loc
     else:
-        addr_blob = ""
         a2 = A.extract_address(title + ". " + text[:2000])
         if a2:
             it["Адрес"] = a2
-            addr_blob = a2
 
     # Район / Город — из адреса
     city_src = it["Адрес"] or title

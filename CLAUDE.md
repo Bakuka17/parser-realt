@@ -185,6 +185,16 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 `./bin/python` и спот-чекнуть значения. Наказ Qwen: (1) `fetch` живой URL → смотри разметку;
 (2) перед сдачей — запусти код, проверь реальные значения. Откат: `qwen mcp remove fetch`.
 
+**Линтер: ruff (Astral) — `ruff.toml` в репо (04.06).** Запуск: `uvx ruff check .` (uv стоит
+в `~/.local/bin`). Конфиг заточен под нас: `select = F,B` (реальные баги/мусор — unused/
+undefined-имена, bugbear), НЕ берём E701/E702/E401 — это намеренный компактный стиль проекта
+(`if x: continue`, `a; b`), не ошибки. Репо зелёный: вычищен мёртвый код, найденный ruff —
+3× осиротевший `mp`-regex (auction24/torgi24/ipmtorgi: цена и так шла через `extract_start_price`),
+`addr_blob` в eauction, unused-import в save_marked. Опц. гейт на коммит — `.pre-commit-config.yaml`
+(lint-only, без `--fix`/format чтобы не ломать стиль; активировать: `uv tool install pre-commit
+&& pre-commit install`). **Serena/LSP-MCP Qwen НЕ ставим** — на мелком репо её ~25 инструментов
+раздули бы контекст Qwen (потеря ликвидности); окупается на больших кодовых базах, не на нашем.
+
 ## Договорённости о делегировании (зафиксировано 01.06.2026)
 
 **Сделка:** пользователь использует платную подписку ТОЛЬКО с Claude. Claude взамен —

@@ -1,0 +1,13 @@
+# Линтер проекта — ruff (Astral). Запуск: `uvx ruff check .`
+# ФИЛОСОФИЯ: ловим БАГИ и МУСОР, НЕ воюем со стилем.
+#   select F = pyflakes (unused/undefined имена, f-string без плейсхолдера — реальные баги),
+#          B = flake8-bugbear (мутабельные дефолты, баги в циклах и т.п.).
+#   НЕ берём E701/E702/E401 — это НАМЕРЕННЫЙ компактный стиль проекта
+#   (`if x: continue`, `a; b`, `import argparse, re`), а не ошибки.
+target-version = "py312"
+line-length = 120
+extend-exclude = ["legacy", "RealtyApp", "dialogs"]
+
+[lint]
+select = ["F", "B"]
+ignore = ["B007"]  # неиспользуемая loop-переменная (наш стиль с enumerate) — допустимо

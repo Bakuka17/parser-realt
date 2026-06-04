@@ -32,7 +32,6 @@ def parse():
         if not it["Объект"]: continue
         it["Адрес"]=A.extract_address(text) or ""
         ar=A.extract_area(text); it["Площадь, м²"]=str(ar) if ar else ""
-        mp=re.search(r'(?:начальн\w*\s+цен\w*|стартов\w*).{0,80}?(\d[\d\s]*[.,]?\d*)\s*(?:BYN|бел\.?\s*руб|Br)', text, re.I)
         it["Начальная цена"]=A.extract_start_price(text)
         it["Дата аукциона"]=A.parse_date(text)
         it["Телефон"]=A.extract_phones(text)

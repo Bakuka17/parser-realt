@@ -45,8 +45,7 @@ def parse_ipmtorgi():
             it["Адрес"] = A.extract_address(text) or ""
             ar = A.extract_area(text)
             it["Площадь, м²"] = str(ar) if ar else ""        # ФИКС: верный ключ
-            # цена: ищем рядом со словом «начальн … цен»
-            mp = re.search(r'начальн\w*\s+цен\w*.{0,80}?(\d[\d\s]*[.,]?\d*)\s*(?:BYN|бел\.?\s*руб|Br)', text, re.I)
+            # цена
             it["Начальная цена"]=A.extract_start_price(text)
             it["Дата аукциона"] = A.parse_date(text)
             md = re.search(r'(?i)задат\w+.{0,60}?(\d[\d\s]*[.,]?\d*)\s*(?:BYN|бел\.?\s*руб|Br)', text)

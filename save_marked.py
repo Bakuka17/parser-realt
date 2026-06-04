@@ -20,7 +20,6 @@ import math
 import time
 import urllib.parse
 import urllib.request
-from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
