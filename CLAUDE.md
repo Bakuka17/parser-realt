@@ -176,18 +176,20 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ⚠ Типовое: Qwen пишет «все тесты пройдены», а по факту нет (ловил 6/8, 6/10, 9/10) — ВСЕГДА
 прогонять самому. Бэкап диалогов: `dialogs/` (в .gitignore, синк в Яндекс).
 
-**Qwen Code (локальный CLI `/opt/homebrew/bin/qwen`, форк Gemini CLI) + MCP-набор (04.06).**
-В `~/.qwen/settings.json` подключены 4 MCP-сервера (все `Connected`, проверено `qwen mcp list`):
-`fetch` (mcp-server-fetch — живой HTML), `context7` (@upstash/context7-mcp — свежие доки
-библиотек), `excel` (excel-mcp-server — чтение/проверка нашего xlsx), `ddg`
-(duckduckgo-mcp-server — веб-поиск). Главное — `fetch`: Qwen достаёт живой HTML до написания
-регэкспов, бьёт в баг класса «`<strong>` вместо `<b>`».
-**Намеренно НЕ ставили:** Playwright (~25 тулз — bloat + риск бана IP), Serena/LSP (тоже bloat
-на мелком репо), Git/FS (у Qwen Code и так есть). Принцип — не раздувать контекст Qwen.
-⚠ Чинит ТОЛЬКО «не видел страницу»; баги логики/контракта (напр. `", ".join()` по строке
-от `extract_phones`, цена без якоря валюты) fetch НЕ ловит — Qwen всё равно обязан прогнать
-`./bin/python` и спот-чекнуть значения. Наказ Qwen: (1) `fetch` живой URL → смотри разметку;
-(2) перед сдачей — запусти код, проверь реальные значения. Откат: `qwen mcp remove fetch`.
+**Qwen = ВЕБ-чат (chat.qwen.ai), НЕ локальный CLI (04.06).** Пользователь работает в веб-Qwen,
+а не в Qwen Code CLI (CLI запустить не смог). Это критично для модели связки:
+- Веб-Qwen **НЕ может запускать наш код** — `code_interpreter` у него в облачной песочнице
+  Alibaba, без нашего репо/venv/доступа к нашим сайтам. Значит «Qwen проверил, работает» из
+  веба ≠ проверено. **Финальный прогон против живых данных — ВСЕГДА на Claude (или юзере
+  в терминале).** Отсюда и хроническое «тесты пройдены», а по факту нет — он физически не
+  гоняет код у нас.
+- «Глаза» у веб-Qwen ЕСТЬ: `web_extractor`/`fire-crawl` (чтение веб-страниц) — наказ Qwen:
+  «сначала открой URL через fire-crawl/web_extractor, потом пиши регэксп» (лечит `<strong>`/`<b>`).
+- MCP в веб-Qwen добавляются ТОЛЬКО как удалённые URL (SSE/HTTP) — локальные stdio-команды
+  (`uvx`/`npx`) облако не запустит. Добавлен **Context7** по URL `https://mcp.context7.com/mcp`
+  (живые доки библиотек). fire-crawl/code-interpreter/Sequential-Thinking — встроенные тумблеры.
+- Локальный Qwen Code CLI БЫЛ настроен (fetch/context7/excel/ddg), но **удалён за ненадобностью**
+  (`~/.qwen/settings.json` пуст) — юзер CLI не использует. uv оставлен (на нём `ruff`).
 
 **Линтер: ruff (Astral) — `ruff.toml` в репо (04.06).** Запуск: `uvx ruff check .` (uv стоит
 в `~/.local/bin`). Конфиг заточен под нас: `select = F,B` (реальные баги/мусор — unused/
