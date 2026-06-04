@@ -176,10 +176,14 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ⚠ Типовое: Qwen пишет «все тесты пройдены», а по факту нет (ловил 6/8, 6/10, 9/10) — ВСЕГДА
 прогонять самому. Бэкап диалогов: `dialogs/` (в .gitignore, синк в Яндекс).
 
-**Qwen Code (локальный CLI `/opt/homebrew/bin/qwen`, форк Gemini CLI) + fetch-MCP (04.06).**
-Чтобы Qwen перестал писать вслепую, ему подключён MCP-сервер `fetch` (официальный
-`mcp-server-fetch` через `uvx`) в `~/.qwen/settings.json` — теперь Qwen может сам достать
-живой HTML страницы перед написанием регэкспов. Бьёт в баг класса «`<strong>` вместо `<b>`».
+**Qwen Code (локальный CLI `/opt/homebrew/bin/qwen`, форк Gemini CLI) + MCP-набор (04.06).**
+В `~/.qwen/settings.json` подключены 4 MCP-сервера (все `Connected`, проверено `qwen mcp list`):
+`fetch` (mcp-server-fetch — живой HTML), `context7` (@upstash/context7-mcp — свежие доки
+библиотек), `excel` (excel-mcp-server — чтение/проверка нашего xlsx), `ddg`
+(duckduckgo-mcp-server — веб-поиск). Главное — `fetch`: Qwen достаёт живой HTML до написания
+регэкспов, бьёт в баг класса «`<strong>` вместо `<b>`».
+**Намеренно НЕ ставили:** Playwright (~25 тулз — bloat + риск бана IP), Serena/LSP (тоже bloat
+на мелком репо), Git/FS (у Qwen Code и так есть). Принцип — не раздувать контекст Qwen.
 ⚠ Чинит ТОЛЬКО «не видел страницу»; баги логики/контракта (напр. `", ".join()` по строке
 от `extract_phones`, цена без якоря валюты) fetch НЕ ловит — Qwen всё равно обязан прогнать
 `./bin/python` и спот-чекнуть значения. Наказ Qwen: (1) `fetch` живой URL → смотри разметку;
