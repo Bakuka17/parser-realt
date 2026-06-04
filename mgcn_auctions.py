@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 import argparse, re, time, random
+from collections import Counter
 from pathlib import Path
 from bs4 import BeautifulSoup
 import auctions_common as A
@@ -41,27 +42,44 @@ def parse_list(html: str) -> list[dict]:
     return out
 
 
+_ADDR_RE = re.compile(
+    r"(?:г\.?\s*([А-ЯЁ][а-яё-]+)\s*,?\s*)?"                 # необяз. город
+    r"(ул|пр-т|просп|пр|пер|пл|бул)\.?\s+"                  # тип улицы
+    r"([А-ЯЁ][А-Яа-яё .\-]{2,30}?)\s*,?\s*"                 # название (ленивое)
+    r"(\d+[А-Яа-я]?(?:/\d+[А-Яа-я]?)*)(?:-\d+[А-Яа-я]?)?",  # дом (с / для комплексов); кв. отбрасываем
+    re.I,
+)
+_ST_TYPE = {"ул": "ул.", "пр": "пр.", "пр-т": "пр-т", "просп": "просп.",
+            "пер": "пер.", "пл": "пл.", "бул": "бул."}
+_CITY_GEN = {"минске": "Минск", "гомеле": "Гомель", "бресте": "Брест",
+             "витебске": "Витебск", "могилёве": "Могилёв", "могилеве": "Могилёв",
+             "гродно": "Гродно"}
+
+
 def mgcn_address(title: str, text: str) -> str:
-    """Адрес ОБЪЕКТА (не офиса MGCN!). Каркас DeepSeek, исправлен мной (10/10 + живые):
-    приоритет — маркер «расположен… по адресу: …» (режем по «Наш адрес»/футеру, не по
-    точке-сокращению), иначе — из заголовка «на ул. X, N в Городе» → «г. Город, ул. X, N»."""
-    m = re.search(r"располож\w*\s+по\s+адресу:\s*", text, re.I | re.S)
-    if m:
-        chunk = text[m.end():m.end() + 140]
-        cut = re.search(r"Наш\s+адрес|Как\s+проехать|Реквизит|Телефон", chunk, re.I)
-        if cut:
-            chunk = chunk[:cut.start()]
-        chunk = re.sub(r"\s*\.\s*$", "", chunk.strip()).strip(" .,;")
-        if chunk:
-            return chunk
-    mt = re.search(r"на\s+(ул\.|пр\.|пр-т|просп\.|пер\.|пл\.)\s+([^,]+?)\s*,?\s*"
-                   r"(\d+[А-Яа-я]?)\s+в\s+([А-Яа-я]+)", title, re.I)
-    if mt:
-        cmap = {"Минске": "Минск", "Гомеле": "Гомель", "Бресте": "Брест",
-                "Витебске": "Витебск", "Могилёве": "Могилёв", "Гродно": "Гродно"}
-        city = cmap.get(mt.group(4).strip().rstrip("."), mt.group(4).strip().rstrip("."))
-        return f"г. {city}, {mt.group(1)} {mt.group(2).strip()}, {mt.group(3)}"
-    return ""
+    """Адрес ОБЪЕКТА (не офиса МГЦН!). Тянем чистый «[г. Город,] ул. Улица, Дом» регэкспом
+    из заголовка+текста: квартиру отбрасываем (дом-уровень), офис МГЦН (К. Маркса, 39)
+    исключаем. Для многолотовых берём САМЫЙ ЧАСТЫЙ адрес — доминирующее здание комплекса.
+    (Раньше брали 140 симв после «расположен по адресу» → пусто на 70% + мусорные хвосты.)"""
+    found: list[tuple[str | None, str]] = []
+    for src in (title, text):
+        for m in _ADDR_RE.finditer(src):
+            city, st, name, house = m.groups()
+            name = re.sub(r"\s+", " ", name).strip(" .,-")
+            if "маркса" in name.lower() and house.startswith("39"):
+                continue  # офис МГЦН, не объект
+            core = f"{_ST_TYPE.get(st.lower().rstrip('.'), 'ул.')} {name}, {house}"
+            found.append((city.strip() if city else None, core))
+    if not found:
+        return ""
+    top_core = Counter(c for _, c in found).most_common(1)[0][0]
+    cities = [c for c, core in found if core == top_core and c]
+    city = cities[0] if cities else None
+    if not city:
+        tm = re.search(r"в\s+([А-ЯЁ][а-яё]+е)\b", title)
+        if tm:
+            city = _CITY_GEN.get(tm.group(1).lower())
+    return f"г. {city}, {top_core}" if city else top_core
 
 
 def mgcn_area(title: str, text: str):
