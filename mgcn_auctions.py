@@ -8,7 +8,7 @@
          ./bin/python mgcn_auctions.py --full      # перепарсить всё
 """
 from __future__ import annotations
-import argparse, re, time, random
+import argparse, os, re, time, random
 from collections import Counter
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -126,7 +126,7 @@ def _table_money_range(html: str, match) -> str:
             if p:
                 try:
                     n = float(p.split()[0])
-                    if n > 1:  # порог низкий: цена ПРАВА аренды бывает мелкой (десятки BYN)
+                    if n >= 50:  # легит лизинг-цены ≥60 BYN; <50 — мусор (номера лотов/мелочь)
                         vals.append(n)
                 except ValueError:
                     pass
@@ -195,8 +195,12 @@ def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     return it
 
 
-def collect(prev_db: dict, full: bool) -> list[dict]:
-    prev_urls = set() if full else set(prev_db.keys())
+CHECKPOINT_EVERY = 20  # сохранять прогресс каждые N собранных лотов (защита от обрыва)
+
+
+def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
+    """Собирает деталь по всем категориям, пропуская URL из skip_urls (уже собранные —
+    для инкремента И для резюма после обрыва). on_checkpoint(new) — периодический сейв."""
     new = []
     seen = set()
     for list_url, deal in CATEGORIES:
@@ -206,17 +210,17 @@ def collect(prev_db: dict, full: bool) -> list[dict]:
         print(f"  карточек: {len(cards)}")
         for card in cards:
             nu = A.norm_url(card["url"])
-            if nu in seen:
+            if nu in seen or nu in skip_urls:
                 continue
             seen.add(nu)
-            if nu in prev_urls and not full:
-                continue
             dhtml = A.fetch(card["url"])
             if not dhtml:
                 continue
             it = parse_detail(dhtml, card, deal)
             new.append(it)
             print(f"  + {it['Дата аукциона'] or '????'} | {it['Объект'][:45]} | {it['Начальная цена'] or '—'}")
+            if on_checkpoint and len(new) % CHECKPOINT_EVERY == 0:
+                on_checkpoint(new)
             time.sleep(random.uniform(1.0, 2.0))
     return new
 
@@ -228,14 +232,33 @@ def main():
     cfg = ap.parse_args()
     cfg.out = cfg.out.expanduser().resolve()
 
-    prev_db = A.load_prev(cfg.out)
-    snapshot = {str(r.get("Хэш")) for r in prev_db.values() if r.get("Хэш")}
-    print(f"🔨 mgcn_auctions | БД: {len(prev_db)} | out: {cfg.out.name}")
+    tmp = cfg.out.with_suffix(".tmp.xlsx")  # незавершённый чекпойнт
 
-    new = collect(prev_db, cfg.full)
-    final = ([] if cfg.full else list(prev_db.values())) + new
-    print(f"\n📦 Итог: {len(final)} (новых: {len(new)})")
-    A.write_excel(final, cfg.out, prev_hashes=snapshot)
+    # База для дедупа/резюма:
+    #  • инкремент → читаем готовый out;
+    #  • --full → начинаем с нуля, НО если остался .tmp от обрыва — продолжаем с него (резюм).
+    if cfg.full:
+        base = A.load_prev(tmp) if tmp.exists() else {}
+        if base:
+            print(f"♻ найден незавершённый --full чекпойнт ({len(base)} лотов) — продолжаю с него")
+    else:
+        base = A.load_prev(cfg.out)
+    base_vals = list(base.values())
+    skip_urls = set(base.keys())
+    snapshot = {str(r.get("Хэш")) for r in base.values() if r.get("Хэш")}
+    print(f"🔨 mgcn_auctions | БД: {len(base)} | out: {cfg.out.name}")
+
+    def save(items: list[dict], tag: str = "") -> None:
+        """Атомарная запись: пишем в .tmp, затем переименовываем в out."""
+        A.write_excel(base_vals + items, tmp, prev_hashes=snapshot)
+        if tag == "final":
+            os.replace(tmp, cfg.out)
+        else:
+            print(f"  💾 чекпойнт: всего {len(base_vals) + len(items)} (новых {len(items)})")
+
+    new = collect(skip_urls, on_checkpoint=lambda items: save(items))
+    print(f"\n📦 Итог: {len(base_vals) + len(new)} (новых: {len(new)})")
+    save(new, tag="final")
 
 
 if __name__ == "__main__":
