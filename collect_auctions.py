@@ -63,6 +63,12 @@ def main() -> None:
     if not cfg.no_merge:
         print(f"\n{'=' * 64}\n▶ merge_auctions → свод\n{'=' * 64}")
         subprocess.run([PY, str(HERE / "merge_auctions.py")], cwd=HERE)
+        # встроить свод вкладкой «Аукционы» в commercial_realty.xlsx (всё в одном файле)
+        try:
+            import embed_auctions
+            embed_auctions.embed()
+        except Exception as e:  # noqa: BLE001
+            print(f"   ⚠ вкладка «Аукционы» не встроена: {e}")
 
     ok = sum(1 for _, rc, _ in results if rc == 0)
     bad = [n for n, rc, _ in results if rc not in (0,)]

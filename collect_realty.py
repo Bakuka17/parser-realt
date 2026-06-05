@@ -216,6 +216,12 @@ def main() -> None:
     base = [] if cfg.full else list(prev_db.values())
     final = base + all_new
     R.write_excel(final, cfg.out, prev_hashes=snapshot)
+    # вкладка «Аукционы» в тот же файл (realty пересоздаёт файл → восстанавливаем её здесь)
+    try:
+        import embed_auctions
+        embed_auctions.embed(main=cfg.out)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠ вкладка «Аукционы» не встроена: {e}")
     print(f"\n{'='*60}\n📦 ИТОГ: {len(final)} объектов (новых: {len(all_new)}, из БД: {len(base)})")
     for src in sources:
         print(f"   {src}: {summary.get(src, '—')}")

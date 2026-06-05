@@ -251,6 +251,12 @@ classify_object_type/extract_lot_number, write_excel→лист «Аукцион
 Флаги: `--sources mgcn,torgigov`, `--skip beltorgi`, `--mgcn-full`, `--no-merge`.
 Его же зовёт `scheduled_run.sh` (недельный launchd).
 
+**Всё в одном файле (05.06): `embed_auctions.py`** встраивает свод `auctions_realty.xlsx`
+вкладкой «Аукционы» в `commercial_realty.xlsx` (рядом с Сводка/Продажа/Аренда — чтобы не бегать
+по файлам). Вызывается в конце ОБОИХ оркестраторов: `collect_auctions` (после merge) и
+`collect_realty` (realty пересоздаёт файл через `Workbook()` → вкладку надо восстанавливать там же).
+Вручную: `./bin/python embed_auctions.py`. Существующая вкладка пересоздаётся, остальные листы целы.
+
 Доп. хелперы (через делегирование Qwen/DeepSeek, проверены/исправлены мной):
 `normalize_price` (Qwen, 17/17 — строка цены → (float, валюта)); `extract_re_address`
 (DeepSeek→правка, 10/10 — адрес ОБЪЕКТА, не офиса); `clean_auction_description`
