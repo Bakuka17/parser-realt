@@ -213,6 +213,7 @@ def parse_ad(ad: dict, deal: str) -> Optional[dict]:
         "Витринные окна / 1-я линия": feats["showcase"],
         "Мин. срок аренды": feats["min_rent"],
         "Материал стен": "н/у",
+        "Описание": R.clean_description(body),
         "Сохранить": "",
         "Фото URL": photo_urls,
         "Координаты": coords,

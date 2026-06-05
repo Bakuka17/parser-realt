@@ -101,11 +101,20 @@ COLUMNS = [
     "Витринные окна / 1-я линия",
     "Мин. срок аренды",
     "Материал стен",
+    "Описание",
     "Фото URL",
     "Координаты",
     "Хэш",
 ]
 DEALS = ["Продажа", "Аренда"]
+
+
+def clean_description(text: str, limit: int = 500) -> str:
+    """Описание объекта: схлопнуть пробелы, обрезать до limit. Базовая версия —
+    умную чистку боилерплейта/контактов делает DeepSeek/Qwen, заменю после QA."""
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", str(text)).strip()[:limit].rstrip()
 
 
 def rent_total_from_m2(price_per_m: str, area: str) -> str:
@@ -460,6 +469,7 @@ def parse_listing_text(text: str, deal: str, type_: str, url: str) -> dict:
         "Площадь, м²": area,
         "Цена общая": price_total,
         "Цена за м²": price_per_m,
+        "Описание": clean_description(desc),
         "Этаж / этажность": floor,
         "Год постройки": "н/у",
         "Класс здания": feats["building_class"],

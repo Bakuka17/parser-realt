@@ -170,6 +170,7 @@ def parse_section(section: str, deal: str, type_: str) -> Optional[dict]:
         "Площадь, м²": area,
         "Цена общая": price_total,
         "Цена за м²": price_per,
+        "Описание": R.clean_description(short),
         "Этаж / этажность": "",
         "Год постройки": "н/у",
         "Класс здания": feats["building_class"],
