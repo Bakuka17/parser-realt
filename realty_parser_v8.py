@@ -106,6 +106,34 @@ COLUMNS = [
     "Хэш",
 ]
 DEALS = ["Продажа", "Аренда"]
+
+
+def rent_total_from_m2(price_per_m: str, area: str) -> str:
+    """Аренда: «Цена общая» = ставка/м² × площадь. «24 р./м² / 9 $/м²» + площадь → «X р. / Y $»
+    (диапазон площади → диапазон). Если BYN-часть склеена (2+ чисел, upstream-шум) — только USD."""
+    s = str(price_per_m or "")
+    m_byn = re.match(r"\s*(\d[\d.,]*)", s)
+    byn = None if len(re.findall(r"\d+", s.split("р")[0])) > 1 or not m_byn \
+        else float(m_byn.group(1).replace(",", "."))
+    m_usd = re.search(r"(\d[\d.,]*)\s*\$", s)
+    usd = float(m_usd.group(1).replace(",", ".")) if m_usd else None
+    areas = [float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", str(area))]
+    if (not byn and not usd) or not areas:
+        return ""
+    lo, hi = min(areas), max(areas)
+
+    def fmt(rate):
+        if not rate:
+            return None
+        a, b = rate * lo, rate * hi
+        return (f"{a:,.0f}" if a == b else f"{a:,.0f}–{b:,.0f}").replace(",", " ")
+
+    parts = []
+    if byn:
+        parts.append(f"{fmt(byn)} р.")
+    if usd:
+        parts.append(f"{fmt(usd)} $")
+    return " / ".join(parts)
 TYPE_ORDER = ["Офис", "Склад", "Производство", "Торговое", "Общепит", "Здание"]
 TYPE_COLORS = {
     "Офис": "4472C4",
@@ -420,6 +448,10 @@ def parse_listing_text(text: str, deal: str, type_: str, url: str) -> dict:
     h = hashlib.md5(
         (normalize_url(url) + address + area + price_total).encode()
     ).hexdigest()[:12]
+    # аренда: realt даёт ставку/м², итог пуст → считаем «Цена общая» = ставка × площадь
+    # (после хэша, чтобы не менять дедуп-ключи существующих строк)
+    if not price_total and price_per_m and area:
+        price_total = rent_total_from_m2(price_per_m, area)
     return {
         "Сохранить": "",
         "Тип": final_type,
