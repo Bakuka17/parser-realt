@@ -20,7 +20,7 @@ from openpyxl.utils import get_column_letter
 import realty_parser_v8 as R
 
 MAIN = Path("commercial_realty.xlsx")
-SOURCES = ["kufar_realty.xlsx", "megapolis_realty.xlsx"]
+SOURCES = ["kufar_realty.xlsx", "megapolis_realty.xlsx", "realt_desc.xlsx"]
 
 
 def build_map(path: str) -> dict[str, str]:
@@ -81,7 +81,7 @@ def main() -> None:
             u = row[li - 1].value
             key = R.normalize_url(str(u)) if u else None
             if key and key in src:
-                cell.value = src[key]
+                cell.value = R.clean_description(src[key])  # применяем актуальную чистку
                 cell.alignment = Alignment(vertical="top", wrap_text=True)
                 filled += 1
     wb.save(MAIN)
