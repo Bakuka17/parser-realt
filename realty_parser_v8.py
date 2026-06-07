@@ -76,6 +76,7 @@ DEFAULT_DEBUG_FILE = HERE / "debug_cards.txt"
 COLUMNS = [
     "Сохранить",
     "Тип",
+    "Описание",
     "Телефон",
     "Ссылка",
     "Адрес",
@@ -101,7 +102,6 @@ COLUMNS = [
     "Витринные окна / 1-я линия",
     "Мин. срок аренды",
     "Материал стен",
-    "Описание",
     "Фото URL",
     "Координаты",
     "Хэш",
@@ -997,7 +997,6 @@ def write_excel(
     hdr_fill = PatternFill("solid", fgColor="1F4E79")
     thin = Side(style="thin", color="CCCCCC")
     cb = Border(left=thin, right=thin, top=thin, bottom=thin)
-    type_idx = {t: i for i, t in enumerate(TYPE_ORDER)}
     new_counts: dict[str, int] = {d: 0 for d in DEALS}
     for deal in DEALS:
         ws = wb.create_sheet(deal)
@@ -1014,9 +1013,11 @@ def write_excel(
             cc.border = cb
         ws.row_dimensions[2].height = 36
         deal_items = [it for it in items if it.get("_deal") == deal]
-        deal_items.sort(
-            key=lambda x: (type_idx.get(x.get("Тип"), 99), x.get("Дата публикации") or "")
-        )
+
+        def _date_key(it):  # новые сверху: DD.MM.YYYY → сортируемый кортеж
+            m = re.match(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", str(it.get("Дата публикации") or ""))
+            return (int(m.group(3)), int(m.group(2)), int(m.group(1))) if m else (0, 0, 0)
+        deal_items.sort(key=_date_key, reverse=True)  # актуальная дата сверху → вниз
         row = 3
         prev_set = prev_hashes.get(deal, set())
         for it in deal_items:
@@ -1028,6 +1029,8 @@ def write_excel(
                 cc = ws.cell(row=row, column=ci, value=val)
                 cc.alignment = Alignment(vertical="top", wrap_text=True)
                 cc.border = cb
+                if name == "Описание":  # узкое превью без переноса — не ломает плотность строк
+                    cc.alignment = Alignment(vertical="top", wrap_text=False)
                 if name == "Дата публикации":
                     cc.number_format = "@"
                     cc.alignment = Alignment(horizontal="center", vertical="top")
@@ -1051,6 +1054,7 @@ def write_excel(
         ws.auto_filter.ref = f"A2:{last_col}{max(row - 1, 2)}"
         col_widths = {
             "Сохранить": 10,
+            "Описание": 40,
             "Фото URL": 40,
             "Координаты": 18,
             "Тип": 11,
