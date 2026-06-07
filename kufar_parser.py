@@ -130,7 +130,8 @@ def parse_ad(ad: dict, deal: str) -> Optional[dict]:
         price_parts.append(f"{int(usd)//100:,}".replace(",", " ") + " $")
     price_total = " / ".join(price_parts)
 
-    area = pval(ad, "square_meter", use_label=False)
+    # площадь = параметр «size» («Общая площадь»). НЕ square_meter — то «Цена за м²»!
+    area = pval(ad, "size", use_label=False)
     if area in (None, ""):
         area = ""
     else:
