@@ -76,7 +76,6 @@ DEFAULT_DEBUG_FILE = HERE / "debug_cards.txt"
 COLUMNS = [
     "Сохранить",
     "Тип",
-    "Описание",
     "Телефон",
     "Ссылка",
     "Адрес",
@@ -102,6 +101,7 @@ COLUMNS = [
     "Витринные окна / 1-я линия",
     "Мин. срок аренды",
     "Материал стен",
+    "Описание",
     "Фото URL",
     "Координаты",
     "Хэш",
@@ -997,6 +997,7 @@ def write_excel(
     hdr_fill = PatternFill("solid", fgColor="1F4E79")
     thin = Side(style="thin", color="CCCCCC")
     cb = Border(left=thin, right=thin, top=thin, bottom=thin)
+    type_idx = {t: i for i, t in enumerate(TYPE_ORDER)}
     new_counts: dict[str, int] = {d: 0 for d in DEALS}
     for deal in DEALS:
         ws = wb.create_sheet(deal)
@@ -1013,11 +1014,9 @@ def write_excel(
             cc.border = cb
         ws.row_dimensions[2].height = 36
         deal_items = [it for it in items if it.get("_deal") == deal]
-
-        def _date_key(it):  # новые сверху: парсим DD.MM.YYYY → сортируемый кортеж
-            m = re.match(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", str(it.get("Дата публикации") or ""))
-            return (int(m.group(3)), int(m.group(2)), int(m.group(1))) if m else (0, 0, 0)
-        deal_items.sort(key=_date_key, reverse=True)  # актуальная дата сверху → вниз
+        deal_items.sort(
+            key=lambda x: (type_idx.get(x.get("Тип"), 99), x.get("Дата публикации") or "")
+        )
         row = 3
         prev_set = prev_hashes.get(deal, set())
         for it in deal_items:
@@ -1037,13 +1036,10 @@ def write_excel(
                     cc.font = Font(bold=True, color="FFFFFF", size=10)
                     cc.alignment = Alignment(horizontal="center", vertical="center")
                 elif name == "Ссылка" and val:
-                    cc.value = re.sub(r"^https?://", "", str(val)).split("/")[0]  # видимый домен
-                    cc.hyperlink = val  # клик ведёт на полный URL
+                    cc.hyperlink = val
                     cc.font = Font(color="0563C1", underline="single", size=10)
                 elif name == "Телефон" and val:
                     cc.font = Font(bold=True, color="006100", size=11)
-                elif name == "Описание" and val:
-                    cc.font = Font(bold=True, size=10)
                 elif val == "н/у":
                     cc.font = Font(color="999999", size=10)
                 if is_new and name != "Тип":
@@ -1055,7 +1051,6 @@ def write_excel(
         ws.auto_filter.ref = f"A2:{last_col}{max(row - 1, 2)}"
         col_widths = {
             "Сохранить": 10,
-            "Описание": 60,
             "Фото URL": 40,
             "Координаты": 18,
             "Тип": 11,
