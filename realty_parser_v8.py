@@ -1029,8 +1029,6 @@ def write_excel(
                 cc = ws.cell(row=row, column=ci, value=val)
                 cc.alignment = Alignment(vertical="top", wrap_text=True)
                 cc.border = cb
-                if name == "Описание":  # узкое превью без переноса — не ломает плотность строк
-                    cc.alignment = Alignment(vertical="top", wrap_text=False)
                 if name == "Дата публикации":
                     cc.number_format = "@"
                     cc.alignment = Alignment(horizontal="center", vertical="top")
@@ -1054,7 +1052,7 @@ def write_excel(
         ws.auto_filter.ref = f"A2:{last_col}{max(row - 1, 2)}"
         col_widths = {
             "Сохранить": 10,
-            "Описание": 40,
+            "Описание": 50,
             "Фото URL": 40,
             "Координаты": 18,
             "Тип": 11,
