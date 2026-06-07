@@ -1045,6 +1045,11 @@ def write_excel(
                     cc.font = Font(color="999999", size=10)
                 if is_new and name != "Тип":
                     cc.fill = new_fill
+            # высота строки подстраивается под объём текста (описание/адрес), но не выше ~5 строк
+            _desc = str(it.get("Описание", "") or "")
+            _addr = str(it.get("Адрес", "") or "")
+            _lines = max(1, -(-len(_desc) // 25), -(-len(_addr) // 20))
+            ws.row_dimensions[row].height = min(_lines, 5) * 14 + 2
             row += 1
         # C3 = закрепляем шапку (строки 1-2) И столбцы «Сохранить»+«Тип» (A, B)
         ws.freeze_panes = "C3"
