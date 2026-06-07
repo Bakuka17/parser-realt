@@ -1052,7 +1052,7 @@ def write_excel(
         ws.auto_filter.ref = f"A2:{last_col}{max(row - 1, 2)}"
         col_widths = {
             "Сохранить": 10,
-            "Описание": 50,
+            "Описание": 25,
             "Фото URL": 40,
             "Координаты": 18,
             "Тип": 11,
