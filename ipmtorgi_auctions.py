@@ -38,6 +38,7 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
     seen = set()
     base = "https://ipmtorgi.by/auctions/filter/section-is-nedvizhimost/apply/"
     detail_re = re.compile(r'href="((?:https://ipmtorgi\.by)?/auctions/nedvizhimost/[^"]+)"')
+    prev_page_links: set = set()
     for page in range(1, 100):
         url = f"{base}?PAGEN_1={page}" if page > 1 else base
         print(f"[IPM] list p{page}")
@@ -45,6 +46,9 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
         if not html: break
         links = [l for l in detail_re.findall(html) if l.rstrip('/').endswith('nedvizhimost') is False]
         if not links: break
+        # Конец пагинации Bitrix: за последней страницей сайт отдаёт её же ещё раз.
+        if set(links) == prev_page_links: break
+        prev_page_links = set(links)
         new_on_page = 0
         for link in links:
             full = link if link.startswith("http") else "https://ipmtorgi.by" + link
@@ -79,7 +83,9 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
             if on_checkpoint and len(new) % CHECKPOINT_EVERY == 0:
                 on_checkpoint(new)
             time.sleep(random.uniform(1.0, 2.0))
-        if new_on_page == 0: break
+        # ⚠ НЕ break при new_on_page==0: на РЕЗЮМЕ первые страницы уже собраны
+        # (skip_urls), это не конец пагинации. Конец ловим выше: пустая страница
+        # или повтор предыдущей.
     return new
 
 
