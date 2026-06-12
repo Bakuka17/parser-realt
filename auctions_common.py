@@ -466,7 +466,8 @@ def load_prev(path: Path) -> dict[str, dict]:
 
 
 def norm_url(u: str) -> str:
-    return (u or "").split("?")[0].split("#")[0].rstrip("/")
+    # Слеш НЕ срезаем: Bitrix-сайты (ipmtorgi/eauction) без хвостового слеша → 404.
+    return (u or "").split("?")[0].split("#")[0]
 
 
 def write_excel(items: list[dict], path: Path, prev_hashes: Optional[set] = None) -> None:
