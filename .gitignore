@@ -19,3 +19,5 @@ logs/
 
 # сохранённые диалоги (личный лог, не код)
 dialogs/
+web/data.js
+web/saved/

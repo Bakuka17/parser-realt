@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Лиды коммерческой недвижимости — консоль обзвона</title>
+  <meta name="color-scheme" content="light dark" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="appbar">
+    <div class="appbar__id">
+      <span class="appbar__mark" aria-hidden="true"></span>
+      <div>
+        <h1 class="appbar__title">Консоль обзвона</h1>
+        <p class="appbar__sub" id="meta-line">Загрузка данных…</p>
+      </div>
+    </div>
+    <dl class="appbar__stats" id="stats" aria-label="Сводка по базе"></dl>
+    <button type="button" class="btn-update" id="btnUpdate" title="Собрать свежие объявления и обновить базу">
+      <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
+      <span>Обновить базу</span>
+    </button>
+  </header>
+
+  <div class="modal" id="updModal" hidden>
+    <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="updTitle">
+      <div class="modal__head">
+        <h2 id="updTitle">Обновление базы</h2>
+        <span class="spinner" id="updSpin" hidden aria-hidden="true"></span>
+      </div>
+      <p class="modal__hint">Запускается сбор свежих объявлений со всех источников
+        (инкрементально). Это может занять много минут; окно можно закрыть — процесс
+        продолжится в фоне.</p>
+      <pre class="modal__log" id="updLog" aria-live="polite"></pre>
+      <div class="modal__actions">
+        <button type="button" class="reset" id="updStop" hidden>Остановить</button>
+        <button type="button" class="reset" id="updClose">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar" role="search">
+    <div class="field field--search">
+      <span class="field__icon" data-icon="search" aria-hidden="true"></span>
+      <input id="q" type="search" placeholder="Адрес, тип, телефон, источник…"
+             autocomplete="off" aria-label="Поиск по лидам" />
+    </div>
+
+    <div class="seg" role="group" aria-label="Тип сделки" id="deal">
+      <button type="button" data-deal="" class="is-active">Все</button>
+      <button type="button" data-deal="sale">Продажа</button>
+      <button type="button" data-deal="rent">Аренда</button>
+    </div>
+
+    <label class="field field--select">
+      <span class="field__label">Город</span>
+      <select id="city" aria-label="Город"></select>
+    </label>
+
+    <label class="field field--select">
+      <span class="field__label">Тип</span>
+      <select id="type" aria-label="Тип объекта"></select>
+    </label>
+
+    <label class="field field--select">
+      <span class="field__label">Источник</span>
+      <select id="source" aria-label="Источник"></select>
+    </label>
+
+    <label class="field field--select">
+      <span class="field__label">Сортировка</span>
+      <select id="sort" aria-label="Сортировка">
+        <option value="date">Сначала свежие</option>
+        <option value="usd_desc">Цена ↓</option>
+        <option value="usd_asc">Цена ↑</option>
+        <option value="area_desc">Площадь ↓</option>
+      </select>
+    </label>
+
+    <div class="toggles">
+      <label class="chk"><input type="checkbox" id="phoneOnly" /> С&nbsp;телефоном</label>
+      <label class="chk"><input type="checkbox" id="photoOnly" /> С&nbsp;фото</label>
+    </div>
+  </div>
+
+  <main class="results" id="main">
+    <div class="results__bar">
+      <p class="results__count" id="count" aria-live="polite"></p>
+      <button type="button" class="reset" id="reset" hidden>Сбросить фильтры</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="sentinel" id="sentinel" aria-hidden="true"></div>
+    <div class="empty" id="empty" hidden>
+      <p class="empty__title">Ничего не найдено</p>
+      <p class="empty__hint">Снимите часть фильтров или измените запрос.</p>
+      <button type="button" class="reset" id="reset2">Сбросить фильтры</button>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
