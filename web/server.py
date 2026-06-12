@@ -35,6 +35,8 @@ SAVED_DIR = WEB_DIR / "saved"
 MAIN_XLSX = ROOT / "commercial_realty.xlsx"
 START_PORT = 8765
 SHEETS = {"Продажа", "Аренда"}  # белый список для AppleScript
+KUFAR_PHONE_LIMIT = 200  # сколько телефонов kufar добирать за одно «Обновить базу»
+                         # (≈8с/шт → ~25 мин; весь бэклог гнать вручную бо́льшими порциями)
 
 # ---- индекс объектов по хэшу (из data.js) ----
 INDEX = {}
@@ -58,6 +60,17 @@ JOB = {"running": False, "started": "", "finished": "", "rc": None, "log": ""}
 _proc = None
 
 
+def _stream(cmd):
+    """Запустить cmd, лить stdout в JOB['log'] построчно. Вернуть returncode."""
+    global _proc
+    _proc = subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, text=True, bufsize=1)
+    for line in _proc.stdout:
+        JOB["log"] = (JOB["log"] + line)[-8000:]
+    _proc.wait()
+    return _proc.returncode
+
+
 def _run_update():
     global _proc
     py = sys.executable
@@ -67,22 +80,20 @@ def _run_update():
                 "  Закройте файл в Excel и запустите обновление снова.\n\n")
     JOB.update(running=True, started=datetime.now().strftime("%H:%M:%S"),
                finished="", rc=None,
-               log=warn + "Запуск collect_realty.py (инкрементально)…\n")
+               log=warn + "[1/3] Сбор объявлений (collect_realty.py, инкрементально)…\n")
     try:
-        _proc = subprocess.Popen([py, "-u", "collect_realty.py"], cwd=str(ROOT),
-                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                 text=True, bufsize=1)
-        for line in _proc.stdout:
-            JOB["log"] = (JOB["log"] + line)[-8000:]
-        _proc.wait()
-        rc = _proc.returncode
-        JOB["log"] += f"\ncollect завершён (код {rc}). Ре-экспорт данных…\n"
+        rc = _stream([py, "-u", "collect_realty.py"])
+        JOB["log"] += (f"\n[1/3] Сбор завершён (код {rc}).\n"
+                       f"[2/3] Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен "
+                       f"белорусский IP — Psiphon должен быть ВЫКЛЮЧЕН)…\n")
+        _stream([py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT)])
+        JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
         ex = subprocess.run([py, "web/export_data.py"], cwd=str(ROOT),
                             capture_output=True, text=True)
         JOB["log"] = (JOB["log"] + ex.stdout + ex.stderr)[-8000:]
         load_index()
         JOB.update(rc=rc)
-        JOB["log"] += "\nГотово. Обновите страницу.\n"
+        JOB["log"] += "\n✅ Готово. Обновите страницу.\n"
     except Exception as e:  # noqa: BLE001
         JOB["log"] += f"\nОшибка: {type(e).__name__}: {e}\n"
         JOB.update(rc=-1)

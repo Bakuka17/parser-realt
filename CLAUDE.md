@@ -86,10 +86,12 @@ SPM-проект, открывается через `xed Package.swift`. min mac
   выделяет ВСЮ строку A:AE и скроллит к ней; returncode osascript ПРОВЕРЯЕТСЯ — при отказе
   Automation открывает файл + подсказка про Настройки→Автоматизация), `GET /api/ping`
   (+CORS — страница с file:// сама находит сервер и redirect'ится), `POST /api/update` +
-  `GET /api/update/status` + `POST /api/update/stop` (фоновый `collect_realty.py -u` со
-  стримом лога, потом ре-экспорт), `GET /api/photo?hash=` (превью для карточек БЕЗ фото —
-  realt: og:image с деталки на лету при прокрутке, кэш `web/photo_cache.json` (gitignore),
-  семафор 3 — не злить realt-бан). collect_realty В ОДНОМ процессе → terminate чистый.
+  `GET /api/update/status` + `POST /api/update/stop` — **единое обновление в 3 шага** через
+  `_stream()`: `collect_realty.py -u` (сбор) → `kufar_phones.py --limit KUFAR_PHONE_LIMIT`
+  (добор телефонов; сам пропустится, если IP не белорусский) → ре-экспорт; всё со стримом лога.
+  `GET /api/photo?hash=` (превью для карточек БЕЗ фото — realt: og:image с деталки на лету при
+  прокрутке, кэш `web/photo_cache.json` (gitignore), семафор 3 — не злить realt-бан).
+  Каждый шаг — отдельный процесс → terminate чистый.
   Превью kufar в карточках — миниатюры `list_thumbs_2x` (~60КБ), НЕ `gallery` (полноразмер
   через Psiphon обрывался на середине — «недозагруженные» фото); полный размер качает save.
   Телефон в сохранёнке: из строки таблицы, иначе regex по тексту объявления

@@ -17,10 +17,12 @@ api.kufar.by/.../phone и дописывает номер в колонку «Т
 """
 import argparse
 import asyncio
+import json
 import random
 import re
 import shutil
 import time
+import urllib.request
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -63,6 +65,39 @@ def split_phones(raw):
 def norm_phone(raw):
     """Один или несколько номеров → строка через запятую (формат проекта)."""
     return ", ".join(split_phones(raw))
+
+
+def exit_country():
+    """Страна нашего внешнего IP. -> (countryCode, country, ip) или (None,None,None)."""
+    try:
+        req = urllib.request.Request(
+            "http://ip-api.com/json/?fields=country,countryCode,query",
+            headers={"User-Agent": "curl/8"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            d = json.load(r)
+        return d.get("countryCode"), d.get("country", "?"), d.get("query", "?")
+    except Exception:
+        return None, None, None
+
+
+def guard_belarus_ip(force):
+    """True = можно работать. Под Psiphon (иностранный IP) kufar прячет телефон —
+    тратить часы впустую незачем, поэтому при не-белорусском IP останавливаемся."""
+    if force:
+        print("⚠ Проверка IP пропущена (--force).")
+        return True
+    cc, country, ip = exit_country()
+    if cc is None:
+        print("⚠ Не удалось определить страну IP — продолжаю. Если Psiphon включён,"
+              " номера НЕ раскроются (тогда прервите и выключите VPN).")
+        return True
+    if cc != "BY":
+        print(f"⛔ Внешний IP — {country} ({ip}), НЕ Беларусь.\n"
+              f"   kufar прячет телефоны для иностранных IP. ВЫКЛЮЧИТЕ Psiphon и повторите.\n"
+              f"   (обойти проверку, если уверены: --force)")
+        return False
+    print(f"✓ IP белорусский ({ip}) — kufar отдаст телефоны.")
+    return True
 
 
 def collect_targets(ws, limit):
@@ -136,7 +171,11 @@ async def main():
     ap = argparse.ArgumentParser(description="Добор телефонов kufar (бел. IP, VPN OFF).")
     ap.add_argument("--limit", type=int, default=0, help="сколько объявлений за прогон (0 = все)")
     ap.add_argument("--headless", action="store_true", help="без видимого окна (рискованнее)")
+    ap.add_argument("--force", action="store_true", help="не проверять страну IP")
     cfg = ap.parse_args()
+
+    if not guard_belarus_ip(cfg.force):
+        return
 
     if (HERE / "~$commercial_realty.xlsx").exists():
         print("⚠️  commercial_realty.xlsx открыт в Excel — закройте файл и повторите.")
