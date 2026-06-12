@@ -89,6 +89,17 @@ def _realt(url):
     return {"title": title, "text": text, "photos": _og_images(soup)}
 
 
+def first_og_image(url, timeout=15):
+    """Лёгкий вариант: только первое og:image страницы (для превью-карточек)."""
+    try:
+        _, html = _get(url, timeout=timeout)
+        soup = BeautifulSoup(html, "lxml")
+        imgs = _og_images(soup)
+        return imgs[0] if imgs else ""
+    except Exception:  # noqa: BLE001 — сеть/антибот: просто нет превью
+        return ""
+
+
 def fetch_full_ad(url):
     """-> {ok, error, title, text, photos[]}. Никогда не кидает исключение."""
     base = {"ok": False, "error": "", "title": "", "text": "", "photos": []}

@@ -87,7 +87,11 @@ SPM-проект, открывается через `xed Package.swift`. min mac
   Automation открывает файл + подсказка про Настройки→Автоматизация), `GET /api/ping`
   (+CORS — страница с file:// сама находит сервер и redirect'ится), `POST /api/update` +
   `GET /api/update/status` + `POST /api/update/stop` (фоновый `collect_realty.py -u` со
-  стримом лога, потом ре-экспорт). collect_realty В ОДНОМ процессе → terminate чистый.
+  стримом лога, потом ре-экспорт), `GET /api/photo?hash=` (превью для карточек БЕЗ фото —
+  realt: og:image с деталки на лету при прокрутке, кэш `web/photo_cache.json` (gitignore),
+  семафор 3 — не злить realt-бан). collect_realty В ОДНОМ процессе → terminate чистый.
+  Превью kufar в карточках — миниатюры `list_thumbs_2x` (~60КБ), НЕ `gallery` (полноразмер
+  через Psiphon обрывался на середине — «недозагруженные» фото); полный размер качает save.
   Телефон в сохранёнке: из строки таблицы, иначе regex по тексту объявления
   (`phones_from_text`, ловит `+375…`/`8(0xx)…`, юнит-тесты 6/6); нет → честное
   «нет в объявлении (kufar скрывает за капчей)».

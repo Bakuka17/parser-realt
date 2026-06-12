@@ -124,6 +124,43 @@ def list_saved():
                   if (d / "index.html").exists())
 
 
+# ---- превью-фото по требованию (realt не отдаёт фото в листинге) ----
+PHOTO_CACHE_F = WEB_DIR / "photo_cache.json"
+PHOTO_SEM = threading.Semaphore(3)   # не душим realt параллельными запросами
+_photo_lock = threading.Lock()
+PHOTO_CACHE = {}
+
+
+def load_photo_cache():
+    with contextlib.suppress(Exception):
+        PHOTO_CACHE.update(json.loads(PHOTO_CACHE_F.read_text(encoding="utf-8")))
+
+
+def api_photo(hsh):
+    it = _lookup(hsh)
+    if not it:
+        return {"ok": False, "error": "объект не найден"}
+    if it.get("photo"):
+        return {"ok": True, "photo": it["photo"]}
+    cached = PHOTO_CACHE.get(hsh)
+    if cached is not None:                      # "" = уже пробовали, фото нет
+        return {"ok": bool(cached), "photo": cached}
+    url = it.get("url", "")
+    if not url:
+        return {"ok": False, "error": "нет ссылки"}
+    with PHOTO_SEM:
+        if hsh in PHOTO_CACHE:                  # другой поток уже сходил
+            c = PHOTO_CACHE[hsh]
+            return {"ok": bool(c), "photo": c}
+        photo = fetch_ad.first_og_image(url)
+    with _photo_lock:
+        PHOTO_CACHE[hsh] = photo
+        with contextlib.suppress(Exception):
+            PHOTO_CACHE_F.write_text(
+                json.dumps(PHOTO_CACHE, ensure_ascii=False), encoding="utf-8")
+    return {"ok": bool(photo), "photo": photo}
+
+
 def _lookup(hsh):
     it = INDEX.get(hsh)
     if not it:           # data.js могли перевыгрузить после старта — перечитаем
@@ -307,6 +344,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send_json({"ok": True, "app": "realty-dashboard"})
         if route == "/api/saved":
             return self._send_json({"hashes": list_saved()})
+        if route == "/api/photo":
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            return self._send_json(api_photo((q.get("hash") or [""])[0].strip()))
         if route == "/api/update/status":
             return self._send_json({k: JOB[k] for k in JOB})
         return super().do_GET()
@@ -344,6 +385,7 @@ def free_port(start):
 def main():
     sys.path.insert(0, str(WEB_DIR))  # чтобы import fetch_ad работал из любого cwd
     load_index()
+    load_photo_cache()
     if not INDEX:
         print("⚠️  Нет данных — сначала: ./bin/python web/export_data.py")
     port = free_port(START_PORT)

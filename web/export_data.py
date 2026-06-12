@@ -49,7 +49,9 @@ def first_photo(s):
         return ""
     for tok in re.split(r"[\s,;]+", s):
         if tok.startswith("http"):
-            return tok
+            # kufar: в карточку — миниатюру (~60КБ), а не полноразмер (тяжёлый,
+            # через Psiphon грузится наполовину). Полные фото качает «Сохранить».
+            return tok.replace("/v1/gallery/", "/v1/list_thumbs_2x/")
     return ""
 
 

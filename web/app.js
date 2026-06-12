@@ -152,7 +152,7 @@
     const dealLabel = x.deal === "sale" ? "Продажа" : "Аренда";
     const media = x.photo
       ? `<img src="${esc(x.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`
-      : `<div class="lead__ph">${ICON.building}<span>${esc(x.type || "Объект")}</span></div>`;
+      : `<div class="lead__ph"${hasBackend && x.url ? ` data-lazyphoto="${esc(x.hash)}"` : ""}>${ICON.building}<span>${esc(x.type || "Объект")}</span></div>`;
     const phone = x.phone ? x.phone.split(/[,;]/)[0].trim() : "";
     const callBtn = phone
       ? `<button type="button" class="btn btn--call" data-phone="${esc(phone)}" title="Скопировать ${esc(phone)}">
@@ -192,6 +192,7 @@
     if (next.length) {
       grid.insertAdjacentHTML("beforeend", next.map(cardHtml).join(""));
       shown += next.length;
+      hookLazyPhotos();
     }
     const word = plural(total, ["лид", "лида", "лидов"]);
     $("#count").innerHTML = total
@@ -208,6 +209,46 @@
     if (m) m.innerHTML = m.querySelector(".badge").outerHTML +
       `<div class="lead__ph">${ICON.building}<span>фото недоступно</span></div>`;
   };
+
+  // ---------- ленивые превью (realt не отдаёт фото в листинге) ----------
+  const byHash = new Map(DATA.map((x) => [x.hash, x]));
+  const photoIO = hasBackend
+    ? new IntersectionObserver((ents) => {
+        for (const en of ents) {
+          if (!en.isIntersecting) continue;
+          photoIO.unobserve(en.target);
+          lazyPhoto(en.target);
+        }
+      }, { rootMargin: "400px" })
+    : null;
+
+  function hookLazyPhotos() {
+    if (!photoIO) return;
+    grid.querySelectorAll("[data-lazyphoto]:not([data-obs])").forEach((el) => {
+      el.dataset.obs = "1";
+      photoIO.observe(el);
+    });
+  }
+
+  async function lazyPhoto(el) {
+    const hash = el.dataset.lazyphoto;
+    let res = null;
+    try { res = await (await fetch(`/api/photo?hash=${encodeURIComponent(hash)}`)).json(); }
+    catch { /* сервер занят/упал — оставим заглушку */ }
+    const item = byHash.get(hash);
+    if (res && res.ok && res.photo) {
+      if (item) item.photo = res.photo;     // повторный рендер покажет сразу
+      const media = el.closest(".lead__media");
+      if (media) {
+        const badge = media.querySelector(".badge");
+        media.innerHTML = (badge ? badge.outerHTML : "") +
+          `<img src="${esc(res.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`;
+      }
+    } else {
+      const label = el.querySelector("span");
+      if (label) label.textContent = "фото недоступно";
+    }
+  }
 
   // действия на карточке: копировать телефон / сохранить / в Excel
   grid.addEventListener("click", async (e) => {
