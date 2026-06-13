@@ -23,3 +23,4 @@ web/data.js
 web/saved/
 web/photo_cache.json
 *.bak
+.kufar_profile/

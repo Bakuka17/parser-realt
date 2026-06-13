@@ -30,9 +30,9 @@ from playwright.async_api import async_playwright
 
 HERE = Path(__file__).resolve().parent
 MAIN_XLSX = HERE / "commercial_realty.xlsx"
+PROFILE_DIR = HERE / ".kufar_profile"   # постоянный профиль браузера (залогиненная сессия)
 SHEETS = ("Продажа", "Аренда")
 CHECKPOINT_EVERY = 20          # сохранять xlsx каждые N добытых номеров
-CTX_RESET_EVERY = 80           # новый контекст браузера (свежий fingerprint)
 BAN_STREAK = 12                # столько подряд «кнопка есть, но номер не пришёл» = бан → стоп
 PHONE_BTN = ["text=Позвонить", "text=Показать телефон", "text=Показать номер",
              "button:has-text('Показать')"]
@@ -187,12 +187,34 @@ async def get_phone(page, url):
     return norm_phone(",".join(caught)), reason
 
 
+async def do_login():
+    """Открыть kufar, дать пользователю войти вручную, сохранить сессию в профиль.
+    Пароль вводит ТОЛЬКО пользователь — скрипт лишь открывает окно и ждёт."""
+    async with async_playwright() as p:
+        ctx = await p.chromium.launch_persistent_context(
+            str(PROFILE_DIR), headless=False, locale="ru-RU",
+            user_agent=USER_AGENTS[0])
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        await page.goto("https://www.kufar.by/account", wait_until="domcontentloaded")
+        print("\n→ В открывшемся окне войдите в свой аккаунт kufar (логин/пароль вводите ВЫ).")
+        print("  Когда увидите, что вошли, вернитесь сюда и нажмите Enter.")
+        await asyncio.get_event_loop().run_in_executor(
+            None, input, "  Enter — сохранить сессию: ")
+        await ctx.close()
+    print(f"✓ Сессия сохранена в {PROFILE_DIR.name}. Теперь запускайте добор обычной командой.")
+
+
 async def main():
     ap = argparse.ArgumentParser(description="Добор телефонов kufar (бел. IP, VPN OFF).")
     ap.add_argument("--limit", type=int, default=0, help="сколько объявлений за прогон (0 = все)")
     ap.add_argument("--headless", action="store_true", help="без видимого окна (рискованнее)")
     ap.add_argument("--force", action="store_true", help="не проверять страну IP")
+    ap.add_argument("--login", action="store_true", help="войти в аккаунт kufar (один раз, руками)")
     cfg = ap.parse_args()
+
+    if cfg.login:
+        await do_login()
+        return
 
     if not guard_belarus_ip(cfg.force):
         return
@@ -220,22 +242,21 @@ async def main():
 
     got = empty = 0
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=cfg.headless)
-        ctx = await browser.new_context(locale="ru-RU", user_agent=random.choice(USER_AGENTS))
-        page = await ctx.new_page()
+        # постоянный профиль: переиспользуем залогиненную сессию (см. --login).
+        # Контекст НЕ сбрасываем по ходу — это стёрло бы логин/куки.
+        ctx = await p.chromium.launch_persistent_context(
+            str(PROFILE_DIR), headless=cfg.headless, locale="ru-RU",
+            user_agent=USER_AGENTS[0])
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        print("режим:", "профиль есть (если входили — залогинен)" if PROFILE_DIR.exists()
+              else "без профиля — для большего лимита войдите: --login")
+        print()
 
         from collections import Counter
         reasons = Counter()
         bad_streak = 0
         stop_note = None
         for n, (sheet, row, url, ph_col) in enumerate(targets, 1):
-            if n > 1 and n % CTX_RESET_EVERY == 0:        # свежий fingerprint
-                await ctx.close()
-                ctx = await browser.new_context(locale="ru-RU",
-                                                user_agent=random.choice(USER_AGENTS))
-                page = await ctx.new_page()
-                print("   … сброс контекста браузера")
-
             try:
                 phone, reason = await get_phone(page, url)
                 if not phone and reason == "no_response":   # случайный сбой → 1 повтор
@@ -272,7 +293,7 @@ async def main():
 
             await page.wait_for_timeout(random.randint(2500, 6000))  # пауза, как человек
 
-        await browser.close()
+        await ctx.close()
 
     wb.save(MAIN_XLSX)
     if stop_note:
