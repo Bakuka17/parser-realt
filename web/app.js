@@ -18,6 +18,7 @@
     save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
     table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
     spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>',
+    gavel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 13-7.5 7.5a2.1 2.1 0 0 1-3-3L11 10"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>',
   };
 
   const $ = (s) => document.querySelector(s);
@@ -78,7 +79,7 @@
 
   // ---------- state ----------
   const state = { q: "", deal: "", city: "", type: "", source: "", sort: "date",
-                  phoneOnly: false, photoOnly: false };
+                  phoneOnly: false, photoOnly: false, auctionPast: false };
   let filtered = DATA;
   let shown = 0;
   const savedSet = new Set(); // хэши уже сохранённых (сервер знает; кнопка сразу зелёная)
@@ -114,9 +115,12 @@
       if (state.source && x.source !== state.source) return false;
       if (state.phoneOnly && !x.phone) return false;
       if (state.photoOnly && !x.photo) return false;
+      // аукционы: по умолчанию скрываем прошедшие (дата уже прошла)
+      if (x.deal === "auction" && !state.auctionPast && x.future === false) return false;
       if (q) {
-        const hay = (x.addr + " " + x.city + " " + x.type + " " +
-                     x.phone + " " + x.source + " " + x.desc).toLowerCase();
+        const hay = (x.addr + " " + x.city + " " + x.type + " " + x.phone + " " +
+                     x.source + " " + x.desc + " " + (x.title || "") + " " +
+                     (x.org || "")).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -153,7 +157,45 @@
     const m = /^\+375(\d\d)(\d{3})(\d{2})(\d{2})$/.exec(c || "");
     return m ? `+375 (${m[1]}) ${m[2]}-${m[3]}-${m[4]}` : (c || "");
   }
+  function auctionCard(x) {
+    const media = x.photo
+      ? `<img src="${esc(x.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`
+      : `<div class="lead__ph">${ICON.gavel}<span>${esc(x.type || "Лот")}</span></div>`;
+    const phone = x.phone ? x.phone.split(/[,;]/)[0].trim() : "";
+    const callBtn = phone
+      ? `<button type="button" class="btn btn--call" data-phone="${esc(phone)}" title="Скопировать ${esc(fmtPhone(phone))}">${ICON.copy}<span class="num">${esc(fmtPhone(phone))}</span></button>`
+      : `<span class="btn btn--nophone">${ICON.gavel}торги через площадку</span>`;
+    const url = safeUrl(x.url);
+    const ext = url
+      ? `<a class="btn btn--ghost btn--icon" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Открыть лот на площадке" aria-label="Открыть лот">${ICON.ext}</a>` : "";
+    const mapQ = (x.addr || x.city) ? `https://yandex.ru/maps/?text=${encodeURIComponent(((x.city || "") + " " + (x.addr || "")).trim())}` : "";
+    const map = mapQ
+      ? `<a class="btn btn--ghost btn--icon" href="${esc(mapQ)}" target="_blank" rel="noopener noreferrer" title="Открыть на Яндекс.Картах" aria-label="Карта">${ICON.pin}</a>` : "";
+    const excel = `<button type="button" class="btn btn--ghost btn--icon btn--excel" data-hash="${esc(x.hash)}" title="Открыть в Excel (Аукционы, строка ${x.row || "?"})" aria-label="Открыть в Excel">${ICON.table}</button>`;
+    const dateLine = x.date
+      ? `<div class="auc-date${x.future === false ? " past" : ""}">${ICON.gavel}<span>${esc(x.date)}${x.future === false ? " · прошёл" : (x.future ? " · ожидается" : "")}</span></div>`
+      : "";
+    const bits = [];
+    if (x.area) bits.push(`${nf.format(x.area)} м²`);
+    if (x.deposit) bits.push(`задаток ${esc(x.deposit)}`);
+    return `<article class="lead lead--auc" data-hash="${esc(x.hash)}">
+      <div class="lead__media"><span class="badge badge--auction">Аукцион</span>${media}</div>
+      <div class="lead__body">
+        <div class="lead__top"><span class="lead__kind">${esc(x.type || "Лот")}</span>
+          ${x.source ? `<span class="lead__src">${esc(x.source)}</span>` : ""}</div>
+        ${x.title ? `<div class="auc-title">${esc(x.title)}</div>` : ""}
+        <div class="lead__price">${x.price ? `<b>${esc(x.price)}</b>` : '<span class="noprice">Цена по запросу</span>'}</div>
+        ${dateLine}
+        <div class="lead__meta">${bits.map((b) => `<span>${b}</span>`).join("")}</div>
+        <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}${x.org ? ` · ${esc(x.org)}` : ""}</div>
+      </div>
+      <div class="lead__actions">${callBtn}</div>
+      <div class="lead__actions2">${map}${ext}${excel}</div>
+    </article>`;
+  }
+
   function cardHtml(x) {
+    if (x.deal === "auction") return auctionCard(x);
     const dealLabel = x.deal === "sale" ? "Продажа" : "Аренда";
     const media = x.photo
       ? `<img src="${esc(x.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`
@@ -383,20 +425,23 @@
       $("#" + id).addEventListener("change", (e) => { state[id] = e.target.value; apply(); }));
     $("#phoneOnly").addEventListener("change", (e) => { state.phoneOnly = e.target.checked; apply(); });
     $("#photoOnly").addEventListener("change", (e) => { state.photoOnly = e.target.checked; apply(); });
+    $("#auctionPast").addEventListener("change", (e) => { state.auctionPast = e.target.checked; apply(); });
 
     $("#deal").addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
       state.deal = b.dataset.deal;
       $("#deal").querySelectorAll("button").forEach((x) => x.classList.toggle("is-active", x === b));
+      $("#pastWrap").hidden = state.deal !== "auction";  // «прошедшие» — только для аукционов
       apply();
     });
 
     function reset() {
       Object.assign(state, { q: "", deal: "", city: "", type: "", source: "",
-                             sort: "date", phoneOnly: false, photoOnly: false });
+                             sort: "date", phoneOnly: false, photoOnly: false, auctionPast: false });
       $("#q").value = ""; $("#city").value = ""; $("#type").value = "";
       $("#source").value = ""; $("#sort").value = "date";
       $("#phoneOnly").checked = false; $("#photoOnly").checked = false;
+      $("#auctionPast").checked = false; $("#pastWrap").hidden = true;
       $("#deal").querySelectorAll("button").forEach((x) =>
         x.classList.toggle("is-active", x.dataset.deal === ""));
       apply();

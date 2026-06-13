@@ -295,6 +295,7 @@ h1 { margin: 0; }
 }
 .badge--sale { background: var(--sale-bg); color: var(--sale); }
 .badge--rent { background: var(--rent-bg); color: var(--rent); }
+.badge--auction { background: var(--accent-weak); color: var(--accent); }
 
 .lead__body { padding: var(--s3) var(--s4) var(--s2); display: grid; gap: 6px; }
 .lead__top {
@@ -321,6 +322,18 @@ h1 { margin: 0; }
 }
 .lead__addr { font-size: var(--fs-sm); color: var(--ink-2); }
 .lead__addr .city { color: var(--ink); font-weight: 550; }
+
+/* аукционы */
+.auc-title {
+  font-size: var(--fs-sm); color: var(--ink); font-weight: 550; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.auc-date {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--call);
+}
+.auc-date svg { width: 14px; height: 14px; flex: none; }
+.auc-date.past { color: var(--ink-3); font-weight: 500; }
 
 .lead__actions {
   margin-top: auto; display: flex; gap: var(--s2);

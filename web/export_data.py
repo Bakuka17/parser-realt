@@ -37,6 +37,25 @@ COLMAP = {
     "Хэш": "hash",
 }
 
+# аукционы: своя шапка (AUCTION_COLUMNS) — отдельный маппинг
+COLMAP_AUC = {
+    "Тип объекта": "type",
+    "Объект": "title",
+    "Адрес": "addr",
+    "Район / Город": "city",
+    "Площадь, м²": "area",
+    "Начальная цена": "price",
+    "Задаток": "deposit",
+    "Дата аукциона": "adate",
+    "Организатор": "org",
+    "Телефон": "phone",
+    "Ссылка": "url",
+    "Источник": "source",
+    "Фото URL": "photo",
+    "Описание": "desc",
+    "Хэш": "hash",
+}
+
 EMPTY = {"", "none", "n/a", "н/у", "нет", "—", "-"}
 
 
@@ -144,12 +163,77 @@ def load_sheet(ws, deal, sheet_name):
     return out
 
 
+def parse_adate(s):
+    """Дата аукциона → ('dd.mm.yyyy', future?). future=None если даты нет."""
+    s = s or ""
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        y, mo, d = m.group(1), m.group(2), m.group(3)
+    else:
+        m = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", s)
+        if not m:
+            return "", None
+        d, mo, y = m.group(1), m.group(2), m.group(3)
+    import datetime as _dt
+    try:
+        dt = _dt.date(int(y), int(mo), int(d))
+    except ValueError:
+        return "", None
+    return f"{int(d):02d}.{int(mo):02d}.{y}", dt >= _dt.date.today()
+
+
+def load_auctions(ws):
+    rows = ws.iter_rows(values_only=True)
+    next(rows, None)            # строка 1 — плашка
+    header = next(rows, None)   # строка 2 — шапка
+    if not header:
+        return []
+    idx = {}
+    for i, name in enumerate(header):
+        name = str(name).strip() if name is not None else ""
+        if name in COLMAP_AUC:
+            idx[COLMAP_AUC[name]] = i
+    out = []
+    for excel_row, r in enumerate(rows, start=3):
+        if not r or all(c is None for c in r):
+            continue
+        rec = {k: clean(r[i]) if i < len(r) else "" for k, i in idx.items()}
+        if not rec.get("hash") and not rec.get("url"):
+            continue
+        adate, future = parse_adate(rec.get("adate", ""))
+        out.append({
+            "deal": "auction",
+            "sheet": "Аукционы",
+            "row": excel_row,
+            "type": rec.get("type", "") or "Аукцион",
+            "title": rec.get("title", ""),
+            "phone": ", ".join(normalize_phones(rec.get("phone", ""))),
+            "url": rec.get("url", ""),
+            "addr": rec.get("addr", ""),
+            "city": normalize_city(rec.get("city", "")),
+            "area": to_float(rec.get("area", "")),
+            "price": rec.get("price", ""),        # «Начальная цена» (BYN, бывает диапазон)
+            "deposit": rec.get("deposit", ""),    # задаток
+            "date": adate,                        # дата аукциона (dd.mm.yyyy)
+            "future": future,                     # True/False/None — актуален ли
+            "org": rec.get("org", ""),
+            "source": rec.get("source", ""),
+            "photo": first_photo(rec.get("photo", "")),
+            "coords": None,
+            "desc": (rec.get("desc", "")[:200]),
+            "hash": rec.get("hash", ""),
+        })
+    return out
+
+
 def main():
     wb = load_workbook(SRC, read_only=True)
     items = []
     for sheet, deal in (("Продажа", "sale"), ("Аренда", "rent")):
         if sheet in wb.sheetnames:
             items += load_sheet(wb[sheet], deal, sheet)
+    if "Аукционы" in wb.sheetnames:
+        items += load_auctions(wb["Аукционы"])
     wb.close()
 
     meta = {
@@ -159,6 +243,8 @@ def main():
         "withCoords": sum(1 for x in items if x["coords"]),
         "sale": sum(1 for x in items if x["deal"] == "sale"),
         "rent": sum(1 for x in items if x["deal"] == "rent"),
+        "auction": sum(1 for x in items if x["deal"] == "auction"),
+        "auctionFuture": sum(1 for x in items if x["deal"] == "auction" and x.get("future")),
         "generated": __import__("datetime").datetime.now().strftime("%d.%m.%Y %H:%M"),
     }
 
