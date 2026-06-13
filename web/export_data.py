@@ -12,6 +12,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from phones import normalize_phones  # канонизация + дедуп телефонов
+from cities import normalize_city    # нормализация населённого пункта
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "commercial_realty.xlsx"
@@ -84,13 +85,8 @@ def to_float(s):
         return None
 
 
-def norm_city(s):
-    """'г. Г. Минск' -> 'Минск'; убираем дублирующиеся префиксы 'г.'."""
-    if not s:
-        return ""
-    s = re.sub(r"(?i)\bг\.?\s*", "", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+# Город нормализуется общим normalize_city из cities.py (импорт выше):
+# срезает тип поселения (г./аг./д./п./с.с.), схлопывает дубли (г. Аг. Колодищи → Колодищи).
 
 
 def parse_coords(s):
@@ -132,7 +128,7 @@ def load_sheet(ws, deal, sheet_name):
             "phone": ", ".join(normalize_phones(rec.get("phone", ""))),
             "url": rec.get("url", ""),
             "addr": rec.get("addr", ""),
-            "city": norm_city(rec.get("city", "")),
+            "city": normalize_city(rec.get("city", "")),
             "area": to_float(rec.get("area", "")),
             "price": price,
             "usd": usd(price),
