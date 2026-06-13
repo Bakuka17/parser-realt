@@ -167,13 +167,23 @@
     const ext = url
       ? `<a class="btn btn--ghost btn--icon" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Открыть первоисточник" aria-label="Открыть первоисточник">${ICON.ext}</a>`
       : "";
-    const map = x.coords
-      ? `<a class="btn btn--ghost btn--icon" href="https://www.openstreetmap.org/?mlat=${x.coords[0]}&mlon=${x.coords[1]}#map=18/${x.coords[0]}/${x.coords[1]}" target="_blank" rel="noopener noreferrer" title="Показать на карте" aria-label="Показать на карте">${ICON.pin}</a>`
+    // Яндекс.Карты: по координатам — метка; иначе поиск по адресу (карта есть почти у всех)
+    let mapHref = "";
+    if (x.coords) {
+      mapHref = `https://yandex.ru/maps/?ll=${x.coords[1]},${x.coords[0]}&z=17&pt=${x.coords[1]},${x.coords[0]}`;
+    } else if (x.addr || x.city) {
+      // адрес realt уже содержит город ("г. Минск, …") → не дублируем; у kufar/megapolis добавляем
+      const a = x.addr || "";
+      const q = (!x.city || /(^|\s)(г\.|город|обл|р-н)/i.test(a)) ? (a || x.city) : `${x.city}, ${a}`;
+      mapHref = `https://yandex.ru/maps/?text=${encodeURIComponent(q.trim())}`;
+    }
+    const map = mapHref
+      ? `<a class="btn btn--ghost btn--icon" href="${esc(mapHref)}" target="_blank" rel="noopener noreferrer" title="Открыть на Яндекс.Картах" aria-label="Открыть на Яндекс.Картах">${ICON.pin}</a>`
       : "";
     const save = savedSet.has(x.hash)
       ? `<a class="btn btn--mini btn--saved" href="/saved/${esc(x.hash)}/index.html" target="_blank" rel="noopener" title="Открыть сохранённую копию">${ICON.check}<span>Сохранено</span></a>`
       : `<button type="button" class="btn btn--ghost btn--mini btn--save" data-hash="${esc(x.hash)}" title="Сохранить объявление офлайн (текст + фото)">${ICON.save}<span>Сохранить</span></button>`;
-    const excel = `<button type="button" class="btn btn--ghost btn--mini btn--excel" data-hash="${esc(x.hash)}" title="Открыть в Excel (${esc(x.sheet || "")}, строка ${x.row || "?"})">${ICON.table}<span>Excel</span></button>`;
+    const excel = `<button type="button" class="btn btn--ghost btn--icon btn--excel" data-hash="${esc(x.hash)}" title="Открыть в Excel (${esc(x.sheet || "")}, строка ${x.row || "?"})" aria-label="Открыть в Excel">${ICON.table}</button>`;
     return `<article class="lead" data-hash="${esc(x.hash)}">
       <div class="lead__media"><span class="badge badge--${x.deal}">${dealLabel}</span>${media}</div>
       <div class="lead__body">

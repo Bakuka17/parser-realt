@@ -331,9 +331,11 @@ h1 { margin: 0; }
 }
 .btn--mini { padding: 7px 9px; font-size: var(--fs-xs); }
 .btn--mini svg { width: 14px; height: 14px; }
-.btn--save, .btn--excel { flex: 1 1 auto; }
+/* «Сохранить» тянется (с текстом), остальные — компактные иконки → весь ряд в одну строку */
+.btn--save, .btn--saved { flex: 1 1 auto; min-width: 0; }
+.btn--save span, .btn--saved span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn--saved {
-  flex: 1 1 auto; background: var(--call); color: #fff; border-color: transparent;
+  background: var(--call); color: #fff; border-color: transparent;
 }
 .btn--saved:hover { background: var(--call-press); color: #fff; }
 .btn.busy { opacity: .6; pointer-events: none; }
