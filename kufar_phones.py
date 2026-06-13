@@ -32,7 +32,8 @@ HERE = Path(__file__).resolve().parent
 MAIN_XLSX = HERE / "commercial_realty.xlsx"
 SHEETS = ("Продажа", "Аренда")
 CHECKPOINT_EVERY = 20          # сохранять xlsx каждые N добытых номеров
-CTX_RESET_EVERY = 250          # новый контекст браузера (свежий fingerprint)
+CTX_RESET_EVERY = 80           # новый контекст браузера (свежий fingerprint)
+BAN_STREAK = 12                # столько подряд «кнопка есть, но номер не пришёл» = бан → стоп
 PHONE_BTN = ["text=Позвонить", "text=Показать телефон", "text=Показать номер",
              "button:has-text('Показать')"]
 USER_AGENTS = [
@@ -122,49 +123,68 @@ def collect_targets(ws, limit):
 
 
 async def get_phone(page, url):
-    """Открыть деталку, раскрыть номер. Возвращает нормализованный телефон или ''."""
-    caught = []  # все номера из ответов /phone (у объявления их может быть несколько)
+    """Открыть деталку, раскрыть номер.
+
+    Возвращает (телефон, причина). Причина: ok | no_button (телефона нет, только чат) |
+    no_response (кнопка есть, но номер не пришёл) | throttled (kufar ответил 403/429 —
+    придушивает). Различение причин нужно, чтобы отличить «реально нет» от «бан».
+    """
+    caught = []           # номера из ответов /phone
+    statuses = []         # коды ответов /phone (детект троттла)
 
     async def on_resp(resp):
-        if "/phone" in resp.url and resp.status == 200:
-            try:
-                j = await resp.json()
-                v = j.get("phone") or j.get("phones")
-                if v:
-                    caught.append(v if isinstance(v, str) else ",".join(map(str, v)))
-            except Exception:
-                pass
+        if "/phone" in resp.url:
+            statuses.append(resp.status)
+            if resp.status == 200:
+                try:
+                    j = await resp.json()
+                    v = j.get("phone") or j.get("phones")
+                    if v:
+                        caught.append(v if isinstance(v, str) else ",".join(map(str, v)))
+                except Exception:
+                    pass
 
     page.on("response", on_resp)
+    reason = "no_button"
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        # «человеческое» поведение — reCAPTCHA v3 оценивает поведение, не галочку
+        await page.mouse.wheel(0, random.randint(400, 900))
+        await page.wait_for_timeout(random.randint(700, 1600))
+        clicked = False
         for sel in PHONE_BTN:
             btn = page.locator(sel).first
             if await btn.count():
                 try:
                     await btn.scroll_into_view_if_needed(timeout=2500)
                     await btn.click(timeout=3500)
+                    clicked = True
                     break
                 except Exception:
                     continue
-        # ждём ответ /phone до ~6с
-        for _ in range(12):
-            if caught:
-                break
-            await page.wait_for_timeout(500)
-        if not caught:  # fallback: все tel:-ссылки в DOM
-            dom = await page.evaluate(r"""() => {
-              const tels = [...document.querySelectorAll("a[href^='tel:']")]
-                .map(a => a.getAttribute('href').replace('tel:',''));
-              if (tels.length) return tels.join(',');
-              const m = document.body.innerText.match(/\+375[\s\-()]?\d{2}[\s\-()]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/g);
-              return m ? m.join(',') : '';
-            }""")
-            if dom:
-                caught.append(dom)
+        if clicked:
+            reason = "no_response"
+            for _ in range(20):                 # ждём ответ /phone до ~10с
+                if caught:
+                    break
+                await page.wait_for_timeout(500)
+            if not caught:                       # fallback: tel:-ссылки в DOM
+                dom = await page.evaluate(r"""() => {
+                  const tels = [...document.querySelectorAll("a[href^='tel:']")]
+                    .map(a => a.getAttribute('href').replace('tel:',''));
+                  if (tels.length) return tels.join(',');
+                  const m = document.body.innerText.match(/\+375[\s\-()]?\d{2}[\s\-()]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/g);
+                  return m ? m.join(',') : '';
+                }""")
+                if dom:
+                    caught.append(dom)
+        if caught:
+            reason = "ok"
+        elif clicked and any(s in (403, 429) for s in statuses):
+            reason = "throttled"
     finally:
         page.remove_listener("response", on_resp)
-    return norm_phone(",".join(caught))
+    return norm_phone(",".join(caught)), reason
 
 
 async def main():
@@ -204,6 +224,10 @@ async def main():
         ctx = await browser.new_context(locale="ru-RU", user_agent=random.choice(USER_AGENTS))
         page = await ctx.new_page()
 
+        from collections import Counter
+        reasons = Counter()
+        bad_streak = 0
+        stop_note = None
         for n, (sheet, row, url, ph_col) in enumerate(targets, 1):
             if n > 1 and n % CTX_RESET_EVERY == 0:        # свежий fingerprint
                 await ctx.close()
@@ -213,29 +237,50 @@ async def main():
                 print("   … сброс контекста браузера")
 
             try:
-                phone = await get_phone(page, url)
+                phone, reason = await get_phone(page, url)
+                if not phone and reason == "no_response":   # случайный сбой → 1 повтор
+                    await page.wait_for_timeout(random.randint(4000, 8000))
+                    phone, reason = await get_phone(page, url)
             except Exception as e:
-                phone = ""
+                phone, reason = "", "error"
                 print(f"[{n}/{len(targets)}] {sheet}!{row}  ошибка: {type(e).__name__}")
 
+            reasons[reason] += 1
             if phone:
                 wb[sheet].cell(row=row, column=ph_col).value = phone
                 got += 1
+                bad_streak = 0
                 print(f"[{n}/{len(targets)}] {sheet}!{row}  ✓ {phone}")
             else:
                 empty += 1
-                print(f"[{n}/{len(targets)}] {sheet}!{row}  — нет номера")
+                tag = {"no_button": "нет телефона (только чат)",
+                       "no_response": "не отдал номер",
+                       "throttled": "⚠ kufar придушивает (403/429)",
+                       "error": "ошибка"}.get(reason, reason)
+                print(f"[{n}/{len(targets)}] {sheet}!{row}  — {tag}")
+                bad_streak = bad_streak + 1 if reason in ("no_response", "throttled") else 0
+
+            if bad_streak >= BAN_STREAK:
+                stop_note = (f"{bad_streak} объявлений ПОДРЯД с кнопкой, но без номера — "
+                             "kufar придушивает. Останавливаюсь. Сделайте перерыв на "
+                             "несколько часов, потом запустите снова — резюм добёрет остаток.")
+                break
 
             if got and got % CHECKPOINT_EVERY == 0:
                 wb.save(MAIN_XLSX)
                 print(f"   💾 чекпойнт: сохранено (+{got} номеров)")
 
-            await page.wait_for_timeout(int(random.uniform(2500, 6000)))  # пауза, как человек
+            await page.wait_for_timeout(random.randint(2500, 6000))  # пауза, как человек
 
         await browser.close()
 
     wb.save(MAIN_XLSX)
-    print(f"\n📦 Готово: добыто {got}, без номера {empty} из {len(targets)}.")
+    if stop_note:
+        print(f"\n⛔ {stop_note}")
+    print(f"\n📦 Готово: добыто {got}, без номера {empty}.")
+    print(f"   разбивка: {dict(reasons)}")
+    print("   (no_button = реально только чат; no_response/throttled = kufar не отдал, "
+          "добёрётся позже)")
     print(f"   файл: {MAIN_XLSX}")
     print("   Обновите дашборд:  ./bin/python web/export_data.py")
 
