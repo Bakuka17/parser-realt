@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.realty.kufar-autophones</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/denis/realty_env/bin/python</string>
+    <string>/Users/denis/realty_env/kufar_auto.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/denis/realty_env</string>
+  <key>StartInterval</key>
+  <integer>14400</integer>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/denis/realty_env/logs/kufar_auto.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/denis/realty_env/logs/kufar_auto.err</string>
+</dict>
+</plist>

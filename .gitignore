@@ -24,3 +24,4 @@ web/saved/
 web/photo_cache.json
 *.bak
 .kufar_profile/
+.kufar_nophone.json

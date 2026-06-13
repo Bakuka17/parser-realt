@@ -31,6 +31,7 @@ from playwright.async_api import async_playwright
 HERE = Path(__file__).resolve().parent
 MAIN_XLSX = HERE / "commercial_realty.xlsx"
 PROFILE_DIR = HERE / ".kufar_profile"   # постоянный профиль браузера (залогиненная сессия)
+NO_PHONE_CACHE = HERE / ".kufar_nophone.json"  # хэши, у которых телефона реально нет
 SHEETS = ("Продажа", "Аренда")
 CHECKPOINT_EVERY = 20          # сохранять xlsx каждые N добытых номеров
 BAN_STREAK = 12                # столько подряд «кнопка есть, но номер не пришёл» = бан → стоп
@@ -101,11 +102,50 @@ def guard_belarus_ip(force):
     return True
 
 
-def collect_targets(ws, limit):
-    """(row_idx, url) для kufar-строк без телефона. row_idx — 1-based для openpyxl."""
+def load_nophone():
+    try:
+        return set(json.loads(NO_PHONE_CACHE.read_text(encoding="utf-8")))
+    except Exception:
+        return set()
+
+
+def save_nophone(s):
+    try:
+        NO_PHONE_CACHE.write_text(json.dumps(sorted(s)), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def remaining_count():
+    """Сколько kufar ещё можно добрать (без телефона и не в кэше «телефона нет»)."""
+    skip = load_nophone()
+    wb = load_workbook(MAIN_XLSX, read_only=True)
+    n = 0
+    for sh in SHEETS:
+        if sh not in wb.sheetnames:
+            continue
+        ws = wb[sh]
+        hdr = [c.value for c in ws[2]]
+        try:
+            ph, sr, hx = hdr.index("Телефон"), hdr.index("Источник"), hdr.index("Хэш")
+        except ValueError:
+            continue
+        for r in ws.iter_rows(min_row=3, values_only=True):
+            if len(r) <= max(ph, sr, hx):
+                continue
+            if "kufar" in str(r[sr] or "") and not str(r[ph] or "").strip():
+                if str(r[hx] or "") not in skip:
+                    n += 1
+    wb.close()
+    return n
+
+
+def collect_targets(ws, limit, skip_hashes):
+    """(row, url, ph_col, hash) для kufar-строк без телефона, кроме известных «без тел.»."""
     hdr = [c.value for c in ws[2]]
     col = {str(h): i for i, h in enumerate(hdr) if h}
     ph, lk, sr = col.get("Телефон"), col.get("Ссылка"), col.get("Источник")
+    hx = col.get("Хэш")
     if ph is None or lk is None or sr is None:
         return []
     out = []
@@ -114,9 +154,12 @@ def collect_targets(ws, limit):
             continue
         if str(ws.cell(r, ph + 1).value or "").strip():
             continue
+        h = str(ws.cell(r, hx + 1).value or "") if hx is not None else ""
+        if h and h in skip_hashes:          # уже проверяли — телефона нет
+            continue
         url = str(ws.cell(r, lk + 1).value or "")
         if url.startswith("http"):
-            out.append((r, url, ph + 1))
+            out.append((r, url, ph + 1, h))
         if limit and len(out) >= limit:
             break
     return out
@@ -226,6 +269,7 @@ async def main():
     print("Бэкап → commercial_realty.xlsx.bak")
     shutil.copy(MAIN_XLSX, MAIN_XLSX.with_suffix(".xlsx.bak"))
 
+    skip = load_nophone()
     wb = load_workbook(MAIN_XLSX)
     targets = []
     per = cfg.limit if cfg.limit else 0
@@ -234,7 +278,7 @@ async def main():
             need = (per - len(targets)) if per else 0
             if per and need <= 0:
                 break
-            targets += [(sh, *t) for t in collect_targets(wb[sh], need)]
+            targets += [(sh, *t) for t in collect_targets(wb[sh], need, skip)]
     print(f"К добору: {len(targets)} kufar-объявлений без телефона"
           + (f" (лимит {cfg.limit})" if cfg.limit else "") + "\n")
     if not targets:
@@ -256,7 +300,7 @@ async def main():
         reasons = Counter()
         bad_streak = 0
         stop_note = None
-        for n, (sheet, row, url, ph_col) in enumerate(targets, 1):
+        for n, (sheet, row, url, ph_col, h) in enumerate(targets, 1):
             try:
                 phone, reason = await get_phone(page, url)
                 if not phone and reason == "no_response":   # случайный сбой → 1 повтор
@@ -274,6 +318,8 @@ async def main():
                 print(f"[{n}/{len(targets)}] {sheet}!{row}  ✓ {phone}")
             else:
                 empty += 1
+                if reason == "no_button" and h:     # телефона нет → больше не проверяем
+                    skip.add(h)
                 tag = {"no_button": "нет телефона (только чат)",
                        "no_response": "не отдал номер",
                        "throttled": "⚠ kufar придушивает (403/429)",
@@ -296,6 +342,7 @@ async def main():
         await ctx.close()
 
     wb.save(MAIN_XLSX)
+    save_nophone(skip)
     if stop_note:
         print(f"\n⛔ {stop_note}")
     print(f"\n📦 Готово: добыто {got}, без номера {empty}.")

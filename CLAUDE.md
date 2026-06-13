@@ -194,6 +194,19 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
      канону `375\d{9}`, пишем через запятую (юнит 6/6). Смоук 12.06: 21/25 за 208с.
    • Осталось добрать ~5497 (на 12.06 kufar с телефоном = 21). ~7% держат номер и в тексте
      (`phones_from_text` в web/server.py — добор без VPN не нужен).
+   • Доработки 13.06: `--login` (persistent-профиль `.kufar_profile`, юзер входит сам —
+     залогинен = выше лимит раскрытий) | кэш `.kufar_nophone.json` (хэши без телефона —
+     no_button/404 больше не перепроверяются; `remaining_count()` считает остаток) | get_phone
+     различает причины (ok/no_button/no_response/throttled) | BAN_STREAK=12 → авто-стоп при
+     серии отказов | `split_phones` режет слитые номера. ⚠ Реальность kufar: придушивает после
+     ~165 раскрытий/сессию (проверено: у «пустых» в 7/9 случаев телефон ЕСТЬ) → гнать малыми
+     порциями (150-200) с перерывами.
+   • **Автодобор (13.06):** `kufar_auto.py` + launchd `com.realty.kufar-autophones.plist`
+     (StartInterval 4ч) + лаунчеры `Автодобор-вкл/выкл.command`. Каждый заход: guard бел. IP
+     (не BY → пропуск, лог `logs/kufar_auto.log`) → `remaining_count()` (0 → «заполнено», стоп)
+     → порция 150 (`--headless --force`) → ре-экспорт. Реально работает ТОЛЬКО при Psiphon OFF.
+     ⚠ headless для kufar reCAPTCHA НЕ проверен вживую (мой IP заграничный) — если ok низкий,
+     в plist убрать `--headless`.
 4. **Kufar глубже max_pages=100** — поднять лимит, если нужна полная аренда.
 
 ## Идеи (что ещё НЕ сделано)
