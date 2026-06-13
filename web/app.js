@@ -78,7 +78,7 @@
   }
 
   // ---------- state ----------
-  const state = { q: "", deal: "", city: "", type: "", source: "", sort: "date",
+  const state = { q: "", deals: new Set(), city: "", type: "", source: "", sort: "date",
                   phoneOnly: false, photoOnly: false, auctionPast: false };
   let filtered = DATA;
   let shown = 0;
@@ -109,7 +109,7 @@
   function apply() {
     const q = state.q.trim().toLowerCase();
     filtered = DATA.filter((x) => {
-      if (state.deal && x.deal !== state.deal) return false;
+      if (state.deals.size && !state.deals.has(x.deal)) return false;
       if (state.city && x.city !== state.city) return false;
       if (state.type && x.type !== state.type) return false;
       if (state.source && x.source !== state.source) return false;
@@ -256,7 +256,7 @@
       ? `Найдено <b>${nf.format(total)}</b> ${word}` +
         (shown < total ? ` · показано ${nf.format(shown)}` : "")
       : "";
-    const dirty = state.q || state.deal || state.city || state.type ||
+    const dirty = state.q || state.deals.size || state.city || state.type ||
                   state.source || state.phoneOnly || state.photoOnly;
     $("#reset").hidden = !dirty;
   }
@@ -427,23 +427,24 @@
     $("#photoOnly").addEventListener("change", (e) => { state.photoOnly = e.target.checked; apply(); });
     $("#auctionPast").addEventListener("change", (e) => { state.auctionPast = e.target.checked; apply(); });
 
-    $("#deal").addEventListener("click", (e) => {
-      const b = e.target.closest("button"); if (!b) return;
-      state.deal = b.dataset.deal;
-      $("#deal").querySelectorAll("button").forEach((x) => x.classList.toggle("is-active", x === b));
-      $("#pastWrap").hidden = state.deal !== "auction";  // «прошедшие» — только для аукционов
-      apply();
+    document.querySelectorAll(".dealChk").forEach((cb) => {
+      cb.checked = false;  // старт: ничего не выбрано = показаны все сделки (WebKit иначе восстанавливает)
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.deals.add(cb.value); else state.deals.delete(cb.value);
+        $("#pastWrap").hidden = !state.deals.has("auction");  // «прошедшие» — только когда выбраны аукционы
+        apply();
+      });
     });
 
     function reset() {
-      Object.assign(state, { q: "", deal: "", city: "", type: "", source: "",
+      Object.assign(state, { q: "", city: "", type: "", source: "",
                              sort: "date", phoneOnly: false, photoOnly: false, auctionPast: false });
+      state.deals.clear();
       $("#q").value = ""; $("#city").value = ""; $("#type").value = "";
       $("#source").value = ""; $("#sort").value = "date";
       $("#phoneOnly").checked = false; $("#photoOnly").checked = false;
       $("#auctionPast").checked = false; $("#pastWrap").hidden = true;
-      $("#deal").querySelectorAll("button").forEach((x) =>
-        x.classList.toggle("is-active", x.dataset.deal === ""));
+      document.querySelectorAll(".dealChk").forEach((cb) => (cb.checked = false));
       apply();
     }
     $("#reset").addEventListener("click", reset);

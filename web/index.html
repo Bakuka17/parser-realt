@@ -48,11 +48,10 @@
              autocomplete="off" aria-label="Поиск по лидам" />
     </div>
 
-    <div class="seg" role="group" aria-label="Тип сделки" id="deal">
-      <button type="button" data-deal="" class="is-active">Все</button>
-      <button type="button" data-deal="sale">Продажа</button>
-      <button type="button" data-deal="rent">Аренда</button>
-      <button type="button" data-deal="auction">Аукционы</button>
+    <div class="toggles" role="group" aria-label="Тип сделки">
+      <label class="chk"><input type="checkbox" class="dealChk" value="sale" autocomplete="off" /> Продажа</label>
+      <label class="chk"><input type="checkbox" class="dealChk" value="rent" autocomplete="off" /> Аренда</label>
+      <label class="chk"><input type="checkbox" class="dealChk" value="auction" autocomplete="off" /> Аукционы</label>
     </div>
 
     <label class="field field--select">
