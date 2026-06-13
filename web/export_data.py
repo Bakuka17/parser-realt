@@ -17,6 +17,16 @@ from cities import normalize_city    # нормализация населённ
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "commercial_realty.xlsx"
 OUT = ROOT / "web" / "data.js"
+PHOTO_CACHE_F = ROOT / "web" / "photo_cache.json"
+
+# realt не отдаёт фото в листинге → дашборд тянет og:image на лету и копит их в
+# photo_cache.json. Вливаем накопленное прямо в data.js, чтобы такие фото показывались
+# сразу и постоянно (а не догружались каждый раз). {hash: url}
+try:
+    PHOTO_CACHE = {k: v for k, v in json.loads(
+        PHOTO_CACHE_F.read_text(encoding="utf-8")).items() if v}
+except Exception:
+    PHOTO_CACHE = {}
 
 # имя колонки в xlsx -> ключ в JSON
 COLMAP = {
@@ -154,7 +164,7 @@ def load_sheet(ws, deal, sheet_name):
             "date": rec.get("date", ""),
             "floor": rec.get("floor", ""),
             "source": rec.get("source", ""),
-            "photo": first_photo(rec.get("photo", "")),
+            "photo": first_photo(rec.get("photo", "")) or PHOTO_CACHE.get(rec.get("hash", ""), ""),
             "coords": parse_coords(rec.get("coords", "")),
             "desc": (rec.get("desc", "")[:200]),
             "hash": rec.get("hash", ""),

@@ -35,7 +35,7 @@ DATA_JS = WEB_DIR / "data.js"
 SAVED_DIR = WEB_DIR / "saved"
 MAIN_XLSX = ROOT / "commercial_realty.xlsx"
 START_PORT = 8765
-SHEETS = {"Продажа", "Аренда"}  # белый список для AppleScript
+SHEETS = {"Продажа", "Аренда", "Аукционы"}  # белый список листов для AppleScript
 KUFAR_PHONE_LIMIT = 200  # сколько телефонов kufar добирать за одно «Обновить базу»
                          # (≈8с/шт → ~25 мин; весь бэклог гнать вручную бо́льшими порциями)
 
@@ -406,8 +406,10 @@ def main():
         print(f"  Объектов в индексе: {len(INDEX)}", flush=True)
         print("  Это окно держит сервер. Не закрывайте, пока пользуетесь дашбордом.", flush=True)
         print("  Остановить: Ctrl+C или закрыть окно.\n", flush=True)
+        import os
         import webbrowser
-        webbrowser.open(url)
+        if not os.environ.get("REALTY_NO_BROWSER"):  # в Mac-приложении дашборд в WKWebView — Safari не нужен
+            webbrowser.open(url)
         with contextlib.suppress(KeyboardInterrupt):
             httpd.serve_forever()
         print("\n  Сервер остановлен.")
