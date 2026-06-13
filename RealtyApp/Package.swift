@@ -1,7 +1,7 @@
 // swift-tools-version: 5.9
-// macOS-приложение, фронтенд для Python-парсера коммерческой недвижимости.
-// Открыть в Xcode: cd RealtyApp && xed Package.swift
-// Min macOS 13. Зависимость: CoreXLSX (https://github.com/CoreOffice/CoreXLSX).
+// macOS-приложение: нативная оболочка (WKWebView) вокруг веб-дашборда обзвона.
+// Само поднимает web/server.py и показывает его в окне. Открыть: cd RealtyApp && xed Package.swift
+// Min macOS 13. Внешних зависимостей нет (UI = веб-дашборд).
 import PackageDescription
 
 let package = Package(
@@ -12,15 +12,9 @@ let package = Package(
     products: [
         .executable(name: "RealtyApp", targets: ["RealtyApp"])
     ],
-    dependencies: [
-        .package(url: "https://github.com/CoreOffice/CoreXLSX", from: "0.14.2"),
-    ],
     targets: [
         .executableTarget(
             name: "RealtyApp",
-            dependencies: [
-                .product(name: "CoreXLSX", package: "CoreXLSX"),
-            ],
             path: "Sources/RealtyApp"
         )
     ]
