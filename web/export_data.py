@@ -11,6 +11,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from phones import normalize_phones  # канонизация + дедуп телефонов
+
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "commercial_realty.xlsx"
 OUT = ROOT / "web" / "data.js"
@@ -127,7 +129,7 @@ def load_sheet(ws, deal, sheet_name):
             "sheet": sheet_name,
             "row": excel_row,
             "type": rec.get("type", ""),
-            "phone": rec.get("phone", ""),
+            "phone": ", ".join(normalize_phones(rec.get("phone", ""))),
             "url": rec.get("url", ""),
             "addr": rec.get("addr", ""),
             "city": norm_city(rec.get("city", "")),

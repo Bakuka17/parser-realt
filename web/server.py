@@ -27,6 +27,7 @@ from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
 
 import fetch_ad  # web/ в sys.path, см. main()
+from phones import normalize_phone  # общий канон телефонов
 
 WEB_DIR = Path(__file__).resolve().parent
 ROOT = WEB_DIR.parent
@@ -115,16 +116,14 @@ PHONE_RE = re.compile(
 
 
 def phones_from_text(text):
-    """Телефоны прямо в тексте объявления (kufar так делает в ~7% случаев)."""
+    """Телефоны прямо в тексте объявления (kufar так делает в ~7% случаев).
+    PHONE_RE ловит шейп номера в свободном тексте, normalize_phone (общий канон)
+    приводит к +375… и валидирует длину; дедуп с сохранением порядка."""
     out = []
     for m in PHONE_RE.findall(text or ""):
-        n = re.sub(r"[\s\-()]", "", m)
-        if n.startswith("80"):
-            n = "+375" + n[2:]
-        elif not n.startswith("+"):
-            n = "+" + n
-        if n not in out:
-            out.append(n)
+        canon = normalize_phone(m)
+        if canon and canon not in out:
+            out.append(canon)
     return out[:3]
 
 

@@ -148,6 +148,11 @@
     if (x.date) bits.push(esc(x.date));
     return bits.map((b) => `<span>${b}</span>`).join("");
   }
+  function fmtPhone(c) {
+    // канон +375XXXXXXXXX -> +375 (29) 145-13-87; чужое/пустое отдаём как есть
+    const m = /^\+375(\d\d)(\d{3})(\d{2})(\d{2})$/.exec(c || "");
+    return m ? `+375 (${m[1]}) ${m[2]}-${m[3]}-${m[4]}` : (c || "");
+  }
   function cardHtml(x) {
     const dealLabel = x.deal === "sale" ? "Продажа" : "Аренда";
     const media = x.photo
@@ -155,8 +160,8 @@
       : `<div class="lead__ph"${hasBackend && x.url ? ` data-lazyphoto="${esc(x.hash)}"` : ""}>${ICON.building}<span>${esc(x.type || "Объект")}</span></div>`;
     const phone = x.phone ? x.phone.split(/[,;]/)[0].trim() : "";
     const callBtn = phone
-      ? `<button type="button" class="btn btn--call" data-phone="${esc(phone)}" title="Скопировать ${esc(phone)}">
-           ${ICON.copy}<span class="num">${esc(phone)}</span></button>`
+      ? `<button type="button" class="btn btn--call" data-phone="${esc(phone)}" title="Скопировать ${esc(fmtPhone(phone))}">
+           ${ICON.copy}<span class="num">${esc(fmtPhone(phone))}</span></button>`
       : `<span class="btn btn--nophone">${ICON.phone}нет телефона</span>`;
     const url = safeUrl(x.url);
     const ext = url
@@ -269,7 +274,7 @@
     btn.classList.add("copied");
     btn.firstChild.replaceWith(buildIcon("check"));
     span.textContent = "Скопировано";
-    toast("Телефон скопирован: " + num);
+    toast("Телефон скопирован: " + fmtPhone(num));
     setTimeout(() => {
       btn.classList.remove("copied");
       btn.firstChild.replaceWith(buildIcon("copy"));
