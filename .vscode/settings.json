@@ -1,0 +1,18 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/bin/python",
+  "ruff.interpreter": "${workspaceFolder}/bin/python",
+  "files.associations": { "*.command": "shellscript" },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.kufar_profile": true
+  },
+  "search.exclude": {
+    "**/*.xlsx": true,
+    "**/*.xlsx.bak": true,
+    "web/data.js": true,
+    "web/saved": true,
+    "photos": true,
+    "logs": true,
+    "**/.kufar_profile": true
+  }
+}

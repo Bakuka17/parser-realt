@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Дашборд: запустить",
+      "type": "shell",
+      "command": "./bin/python web/server.py",
+      "presentation": { "panel": "dedicated", "focus": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Дашборд: обновить данные из Excel",
+      "type": "shell",
+      "command": "./bin/python web/export_data.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Kufar: добор телефонов 200 (Psiphon OFF)",
+      "type": "shell",
+      "command": "caffeinate -i ./bin/python kufar_phones.py --limit 200",
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Kufar: войти в аккаунт (один раз)",
+      "type": "shell",
+      "command": "./bin/python kufar_phones.py --login",
+      "problemMatcher": []
+    },
+    {
+      "label": "Собрать объявления (инкрементально)",
+      "type": "shell",
+      "command": "./bin/python collect_realty.py",
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Линтер ruff (проверить код)",
+      "type": "shell",
+      "command": "uvx ruff check .",
+      "problemMatcher": []
+    }
+  ]
+}
