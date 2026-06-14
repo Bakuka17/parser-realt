@@ -87,7 +87,8 @@ def _run_update():
         JOB["log"] += (f"\n[1/3] Сбор завершён (код {rc}).\n"
                        f"[2/3] Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен "
                        f"белорусский IP — Psiphon должен быть ВЫКЛЮЧЕН)…\n")
-        _stream([py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT)])
+        # --chrome-cookies: kufar спрятал телефон за логин, берём сессию из Chrome
+        _stream([py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"])
         JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
         ex = subprocess.run([py, "web/export_data.py"], cwd=str(ROOT),
                             capture_output=True, text=True)
