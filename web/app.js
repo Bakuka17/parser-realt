@@ -293,6 +293,8 @@
     "Производство": "лёгкое производство, мастерские, цех",
   };
   const tenantHint = (t) => TENANTS[t] || "розница, услуги, общепит или офис — зависит от локации и трафика";
+  // нормы Минска для доходного метода (из методички): вакансия ~11%, операц. расходы ~30%, торг ~4%
+  const VACANCY = 0.11, OPEX = 0.30, TORG = 0.04;
 
   // умная нормализация адреса: «г. Минск, ул. Кульман, 1/1» и «Кульман ул, 1к1, Минск» → одно
   const ADDR_NOISE = new Set(["г", "город", "обл", "область", "рн", "район", "ул", "улица",
@@ -321,14 +323,19 @@
     const near = x.coords ? same.filter((o) => {
       const d = kmDist(x.coords, o.coords); return d != null && d <= 2;
     }) : [];
-    let rate = null, annual = null, payback = null, rentN = 0;
-    if (x.deal === "sale" && x.usd && x.area) {       // окупаемость: ставка из похожих АРЕНДНЫХ
+    let rate = null, gross = null, noi = null, capRate = null, payback = null, rentN = 0;
+    if (x.deal === "sale" && x.usd && x.area) {       // доходность: ставка из похожих АРЕНДНЫХ
       const rc = comps(x, "rent", 0.35).map(ppmOf).filter((n) => n);
       rentN = rc.length; rate = median(rc);
-      if (rate) { annual = rate * x.area * 12; payback = x.usd / annual; }
+      if (rate) {
+        gross = rate * x.area * 12;                   // валовый годовой доход
+        noi = gross * (1 - VACANCY) * (1 - OPEX);     // чистый (NOI): −вакансия −расходы
+        capRate = noi / x.usd * 100;                  // доходность (cap rate), %
+        payback = x.usd / noi;                        // окупаемость по NOI (честнее, чем по валу)
+      }
     }
     return { x, same, near, ppmSelf: ppmOf(x), medCity: median(same.map(ppmOf)),
-             medNear: median(near.map(ppmOf)), rate, annual, payback, rentN };
+             medNear: median(near.map(ppmOf)), rate, gross, noi, capRate, payback, rentN };
   }
 
   function openAnalysis(btn) {
@@ -371,6 +378,9 @@
     if (a.near.length) rows.push(
       `<div class="ana-row"><span>Рядом (≤2 км) · ${a.near.length}</span>
         <b>${money(a.medNear)}${unit} ${pos(a.ppmSelf, a.medNear)}</b></div>`);
+    if (x.deal === "sale" && tot) rows.push(
+      `<div class="ana-row"><span>Ориентир с торгом (−${Math.round(TORG * 100)}%)</span>
+        <b>${fmtCur(tot.v * (1 - TORG), tot.cur)}</b></div>`);
 
     let invest = "";
     if (x.deal === "sale") {
@@ -378,11 +388,13 @@
         ? `<div class="ana-box ana-box--invest">
             <div class="ana-box__t">Если сдавать в аренду</div>
             <div class="ana-row"><span>Ожидаемая ставка</span><b>${money(a.rate)}/м²/мес</b></div>
-            <div class="ana-row"><span>Доход</span><b>${money(a.annual)}/год</b></div>
+            <div class="ana-row"><span>Валовый доход</span><b>${money(a.gross)}/год</b></div>
+            <div class="ana-row"><span>Чистый доход (NOI)</span><b>${money(a.noi)}/год</b></div>
+            <div class="ana-row"><span>Доходность (cap rate)</span><b class="ana-big">${a.capRate.toFixed(1)}%</b></div>
             <div class="ana-row"><span>Окупаемость</span><b class="ana-big">${a.payback.toFixed(1)} лет</b></div>
-            <div class="ana-note">оценка по ${a.rentN} арендным аналогам того же типа в городе</div>
+            <div class="ana-note">NOI — оценка: −вакансия 11%, −расходы 30% (нормы Минска); по ${a.rentN} аренд. аналогам.</div>
           </div>`
-        : `<div class="ana-box"><div class="ana-note">Окупаемость: мало похожих арендных объектов для оценки ставки.</div></div>`;
+        : `<div class="ana-box"><div class="ana-note">Доходность: мало похожих арендных объектов для оценки ставки.</div></div>`;
     }
     const tenants = `<div class="ana-box">
       <div class="ana-box__t">Вероятные арендаторы</div>
