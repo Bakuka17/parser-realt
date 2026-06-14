@@ -331,8 +331,11 @@
         Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>`;
     }
     const unit = x.deal === "rent" ? "/м²/мес" : "/м²";
+    const totalStr = x.usd ? money(x.usd) + (x.deal === "rent" ? "/мес" : "")
+                           : (x.price || "цена не указана");
+    const perM2 = a.ppmSelf ? ` · ${money(a.ppmSelf)}${unit}` : "";
     const rows = [
-      `<div class="ana-row"><span>Цена этого объекта</span><b>${money(a.ppmSelf)}${unit}</b></div>`,
+      `<div class="ana-row"><span>Цена этого объекта</span><b>${esc(totalStr)}${perM2}</b></div>`,
       `<div class="ana-row"><span>Медиана по городу (${esc(x.city)}) · ${a.same.length} похож.</span>
         <b>${money(a.medCity)}${unit} ${pos(a.ppmSelf, a.medCity)}</b></div>`,
     ];
@@ -361,8 +364,10 @@
       .sort((p, q) => Math.abs(p.area - x.area) - Math.abs(q.area - x.area)).slice(0, 5);
     const list = top.map((o) => {
       const u = safeUrl(o.url);
-      const name = `${esc(o.type || "")}, ${nf.format(o.area)} м²${o.city ? " · " + esc(o.city) : ""}`;
-      return `<li><span>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name}</span>
+      const name = `${esc(o.type || "")}, ${nf.format(o.area)} м²`;
+      const addr = esc(o.addr || o.city || "");
+      const nameHtml = u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name;
+      return `<li><span class="ana-an">${nameHtml}${addr ? `<span class="ana-addr">${addr}</span>` : ""}</span>
         <b>${money(ppmOf(o))}${unit}</b></li>`;
     }).join("");
 
