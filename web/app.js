@@ -294,8 +294,17 @@
   };
   const tenantHint = (t) => TENANTS[t] || "розница, услуги, общепит или офис — зависит от локации и трафика";
 
-  const dedupKey = (o) =>      // один объект с разных источников/повторных публикаций
-    `${(o.addr || "").toLowerCase().replace(/[^a-zа-я0-9]/gi, "")}|${o.area}|${o.usd || o.price || ""}`;
+  // умная нормализация адреса: «г. Минск, ул. Кульман, 1/1» и «Кульман ул, 1к1, Минск» → одно
+  const ADDR_NOISE = new Set(["г", "город", "обл", "область", "рн", "район", "ул", "улица",
+    "пр", "проспект", "просп", "пер", "переулок", "пл", "площадь", "бр", "бульвар", "наб",
+    "набережная", "ш", "шоссе", "д", "дом", "стр", "строение", "к", "корп", "корпус", "минск"]);
+  function normAddr(s) {
+    const a = (s || "").toLowerCase().replace(/(\d)\s*(?:\/|к|корп|корпус)\s*(\d)/g, "$1к$2");
+    return a.split(/[^a-zа-я0-9]+/).filter((t) => t && !ADDR_NOISE.has(t)).sort().join("");
+  }
+  // дубль = ТОЧНОЕ совпадение адреса+площади+ЭТАЖА+цены. Разные единицы в одном доме
+  // (другой этаж / другая точная площадь / другая цена) НЕ схлопываются — остаются обе.
+  const dedupKey = (o) => `${normAddr(o.addr)}|${o.area}|${o.floor || ""}|${o.usd || o.price || ""}`;
 
   function comps(x, deal, tol) {  // похожие: та же сделка+тип+город, площадь ±tol; сам объект исключён
     if (!x.area) return [];
@@ -333,6 +342,8 @@
 
   function analysisHtml(a) {
     const x = a.x, money = (n) => n == null ? "—" : "$" + nf.format(Math.round(n));
+    const head = (x.addr || x.city)
+      ? `<div class="ana-self">${ICON.pin}<span>${esc(x.addr || x.city)}</span></div>` : "";
     const pos = (self, med) => {
       if (!self || !med) return "";
       const p = Math.round((self - med) / med * 100);
@@ -341,7 +352,7 @@
       return `<span class="ana-pos ana-pos--${cls}">${txt}</span>`;
     };
     if (!x.area || !a.same.length) {
-      return `<p class="ana-empty">Недостаточно похожих объектов для анализа${x.area ? "" : " (у объекта нет площади)"}.
+      return head + `<p class="ana-empty">Недостаточно похожих объектов для анализа${x.area ? "" : " (у объекта нет площади)"}.
         Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>`;
     }
     const unit = x.deal === "rent" ? "/м²/мес" : "/м²";
@@ -389,7 +400,7 @@
         <b>${money(ppmOf(o))}${unit}</b></li>`;
     }).join("");
 
-    return `<div class="ana-rows">${rows.join("")}</div>${invest}${tenants}
+    return head + `<div class="ana-rows">${rows.join("")}</div>${invest}${tenants}
       <div class="ana-box"><div class="ana-box__t">Ближайшие аналоги</div>
       <ul class="ana-list">${list}</ul></div>`;
   }

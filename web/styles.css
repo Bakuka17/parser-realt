@@ -505,3 +505,6 @@ h1 { margin: 0; }
 .ana-list a:hover { text-decoration: underline; }
 .ana-empty { color: var(--ink-2); font-size: var(--fs-sm); line-height: 1.5; }
 .btn--ana { color: var(--accent); }
+.ana-self { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: var(--fs-sm);
+  margin-bottom: var(--s2); padding-bottom: var(--s2); border-bottom: 1px solid var(--border); }
+.ana-self svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--accent); }
