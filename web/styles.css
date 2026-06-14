@@ -478,3 +478,28 @@ h1 { margin: 0; }
       transition-duration: .001ms !important; scroll-behavior: auto !important; }
   .lead:hover { transform: none; }
 }
+
+/* ---------- Анализ объекта (модалка сравнения) ---------- */
+.ana { overflow: auto; max-height: 64vh; display: flex; flex-direction: column; gap: var(--s3); }
+.ana-rows { display: flex; flex-direction: column; }
+.ana-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3);
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-sm); color: var(--ink-2); }
+.ana-row b { color: var(--ink); font-size: var(--fs-base); font-weight: 650; }
+.ana-pos { font-size: var(--fs-sm); font-weight: 700; margin-left: 6px; white-space: nowrap; }
+.ana-pos--up { color: var(--sale); }
+.ana-pos--down { color: var(--call); }
+.ana-pos--mid { color: var(--ink-3); }
+.ana-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r);
+  padding: var(--s3); display: flex; flex-direction: column; gap: 5px; }
+.ana-box--invest { background: var(--accent-weak); border-color: transparent; }
+.ana-box__t { font-weight: 700; color: var(--ink); }
+.ana-big { font-size: var(--fs-lg); color: var(--accent-press); font-weight: 750; }
+.ana-note { font-size: var(--fs-xs); color: var(--ink-3); }
+.ana-tenants { color: var(--ink); }
+.ana-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ana-list li { display: flex; justify-content: space-between; gap: var(--s3); font-size: var(--fs-sm); color: var(--ink-2); }
+.ana-list li b { color: var(--ink); }
+.ana-list a { color: var(--accent); text-decoration: none; }
+.ana-list a:hover { text-decoration: underline; }
+.ana-empty { color: var(--ink-2); font-size: var(--fs-sm); line-height: 1.5; }
+.btn--ana { color: var(--accent); }

@@ -17,6 +17,7 @@
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>',
     save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
     table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-4M12 16V8M17 16v-7"/></svg>',
     spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>',
     gavel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 13-7.5 7.5a2.1 2.1 0 0 1-3-3L11 10"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>',
   };
@@ -226,6 +227,7 @@
       ? `<a class="btn btn--mini btn--saved" href="/saved/${esc(x.hash)}/index.html" target="_blank" rel="noopener" title="Открыть сохранённую копию">${ICON.check}<span>Сохранено</span></a>`
       : `<button type="button" class="btn btn--ghost btn--mini btn--save" data-hash="${esc(x.hash)}" title="Сохранить объявление офлайн (текст + фото)">${ICON.save}<span>Сохранить</span></button>`;
     const excel = `<button type="button" class="btn btn--ghost btn--icon btn--excel" data-hash="${esc(x.hash)}" title="Открыть в Excel (${esc(x.sheet || "")}, строка ${x.row || "?"})" aria-label="Открыть в Excel">${ICON.table}</button>`;
+    const ana = `<button type="button" class="btn btn--ghost btn--mini btn--ana" data-hash="${esc(x.hash)}" title="Сравнить с похожими: цена/м², окупаемость">${ICON.chart}<span>Анализ</span></button>`;
     return `<article class="lead" data-hash="${esc(x.hash)}">
       <div class="lead__media"><span class="badge badge--${x.deal}">${dealLabel}</span>${media}</div>
       <div class="lead__body">
@@ -236,7 +238,7 @@
         <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}</div>
       </div>
       <div class="lead__actions">${callBtn}</div>
-      <div class="lead__actions2">${save}${excel}${map}${ext}</div>
+      <div class="lead__actions2">${ana}${save}${excel}${map}${ext}</div>
     </article>`;
   }
 
@@ -259,6 +261,114 @@
     const dirty = state.q || state.deals.size || state.city || state.type ||
                   state.source || state.phoneOnly || state.photoOnly;
     $("#reset").hidden = !dirty;
+  }
+
+  // ---------- анализ объекта: сравнение с похожими (чистый JS на данных дашборда) ----------
+  function median(nums) {
+    const a = nums.filter((n) => n != null && isFinite(n)).sort((p, q) => p - q);
+    if (!a.length) return null;
+    const m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  }
+  const ppmOf = (o) => (o.usd && o.area) ? o.usd / o.area : null;   // $/м² (у аренды — $/м²/мес)
+  function kmDist(a, b) {                                           // расстояние по координатам [lat,lng]
+    if (!a || !b) return null;
+    const R = 6371, r = (d) => d * Math.PI / 180;
+    const dLa = r(b[0] - a[0]), dLo = r(b[1] - a[1]);
+    const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  const TENANTS = {
+    "Офис": "компании, ИТ, услуги, представительства, коворкинг",
+    "Торговое": "магазин, кафе, аптека, салон красоты, пункт выдачи заказов",
+    "Склад": "логистика, хранение, дистрибуция, e-commerce",
+    "Производство": "лёгкое производство, мастерские, цех",
+  };
+  const tenantHint = (t) => TENANTS[t] || "розница, услуги, общепит или офис — зависит от локации и трафика";
+
+  function comps(x, deal, tol) {  // похожие: та же сделка+тип+город, площадь ±tol; сам объект исключён
+    if (!x.area) return [];
+    const lo = x.area * (1 - tol), hi = x.area * (1 + tol);
+    return DATA.filter((o) => o.hash !== x.hash && o.deal === deal && o.type === x.type &&
+      o.city === x.city && o.area && o.area >= lo && o.area <= hi);
+  }
+
+  function analyze(x) {
+    const same = comps(x, x.deal, 0.25);
+    const near = x.coords ? same.filter((o) => {
+      const d = kmDist(x.coords, o.coords); return d != null && d <= 2;
+    }) : [];
+    let rate = null, annual = null, payback = null, rentN = 0;
+    if (x.deal === "sale" && x.usd && x.area) {       // окупаемость: ставка из похожих АРЕНДНЫХ
+      const rc = comps(x, "rent", 0.35).map(ppmOf).filter((n) => n);
+      rentN = rc.length; rate = median(rc);
+      if (rate) { annual = rate * x.area * 12; payback = x.usd / annual; }
+    }
+    return { x, same, near, ppmSelf: ppmOf(x), medCity: median(same.map(ppmOf)),
+             medNear: median(near.map(ppmOf)), rate, annual, payback, rentN };
+  }
+
+  function openAnalysis(btn) {
+    const x = byHash.get(btn.dataset.hash);
+    if (!x) return;
+    $("#anaTitle").textContent =
+      `Анализ: ${x.type || "объект"}${x.area ? ", " + nf.format(x.area) + " м²" : ""}`;
+    $("#anaBody").innerHTML = analysisHtml(analyze(x));
+    $("#anaModal").hidden = false;
+  }
+
+  function analysisHtml(a) {
+    const x = a.x, money = (n) => n == null ? "—" : "$" + nf.format(Math.round(n));
+    const pos = (self, med) => {
+      if (!self || !med) return "";
+      const p = Math.round((self - med) / med * 100);
+      const cls = p > 3 ? "up" : p < -3 ? "down" : "mid";
+      const txt = p > 3 ? `на ${p}% дороже` : p < -3 ? `на ${-p}% дешевле` : "на уровне рынка";
+      return `<span class="ana-pos ana-pos--${cls}">${txt}</span>`;
+    };
+    if (!x.area || !a.same.length) {
+      return `<p class="ana-empty">Недостаточно похожих объектов для анализа${x.area ? "" : " (у объекта нет площади)"}.
+        Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>`;
+    }
+    const unit = x.deal === "rent" ? "/м²/мес" : "/м²";
+    const rows = [
+      `<div class="ana-row"><span>Цена этого объекта</span><b>${money(a.ppmSelf)}${unit}</b></div>`,
+      `<div class="ana-row"><span>Медиана по городу (${esc(x.city)}) · ${a.same.length} похож.</span>
+        <b>${money(a.medCity)}${unit} ${pos(a.ppmSelf, a.medCity)}</b></div>`,
+    ];
+    if (a.near.length) rows.push(
+      `<div class="ana-row"><span>Рядом (≤2 км) · ${a.near.length}</span>
+        <b>${money(a.medNear)}${unit} ${pos(a.ppmSelf, a.medNear)}</b></div>`);
+
+    let invest = "";
+    if (x.deal === "sale") {
+      invest = a.payback
+        ? `<div class="ana-box ana-box--invest">
+            <div class="ana-box__t">Если сдавать в аренду</div>
+            <div class="ana-row"><span>Ожидаемая ставка</span><b>${money(a.rate)}/м²/мес</b></div>
+            <div class="ana-row"><span>Доход</span><b>${money(a.annual)}/год</b></div>
+            <div class="ana-row"><span>Окупаемость</span><b class="ana-big">${a.payback.toFixed(1)} лет</b></div>
+            <div class="ana-note">оценка по ${a.rentN} арендным аналогам того же типа в городе</div>
+          </div>`
+        : `<div class="ana-box"><div class="ana-note">Окупаемость: мало похожих арендных объектов для оценки ставки.</div></div>`;
+    }
+    const tenants = `<div class="ana-box">
+      <div class="ana-box__t">Вероятные арендаторы</div>
+      <div class="ana-tenants">${esc(tenantHint(x.type))}</div>
+      <div class="ana-note">базовая подсказка по типу; «умную» оценку с учётом локации добавим в v2</div></div>`;
+
+    const top = a.same.slice()
+      .sort((p, q) => Math.abs(p.area - x.area) - Math.abs(q.area - x.area)).slice(0, 5);
+    const list = top.map((o) => {
+      const u = safeUrl(o.url);
+      const name = `${esc(o.type || "")}, ${nf.format(o.area)} м²${o.city ? " · " + esc(o.city) : ""}`;
+      return `<li><span>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name}</span>
+        <b>${money(ppmOf(o))}${unit}</b></li>`;
+    }).join("");
+
+    return `<div class="ana-rows">${rows.join("")}</div>${invest}${tenants}
+      <div class="ana-box"><div class="ana-box__t">Ближайшие аналоги</div>
+      <ul class="ana-list">${list}</ul></div>`;
   }
 
   window.__imgFail = (img) => {
@@ -315,6 +425,8 @@
     if (save) return saveAd(save);
     const excel = e.target.closest(".btn--excel");
     if (excel) return revealExcel(excel);
+    const ana = e.target.closest(".btn--ana");
+    if (ana) return openAnalysis(ana);
   });
 
   async function copyPhone(btn) {
@@ -449,6 +561,8 @@
     }
     $("#reset").addEventListener("click", reset);
     $("#reset2").addEventListener("click", reset);
+    $("#anaClose").addEventListener("click", () => { $("#anaModal").hidden = true; });
+    $("#anaModal").addEventListener("click", (e) => { if (e.target === $("#anaModal")) $("#anaModal").hidden = true; });
 
     // infinite scroll
     new IntersectionObserver((ents) => {
