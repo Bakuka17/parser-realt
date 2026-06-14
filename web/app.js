@@ -294,11 +294,17 @@
   };
   const tenantHint = (t) => TENANTS[t] || "розница, услуги, общепит или офис — зависит от локации и трафика";
 
+  const dedupKey = (o) =>      // один объект с разных источников/повторных публикаций
+    `${(o.addr || "").toLowerCase().replace(/[^a-zа-я0-9]/gi, "")}|${o.area}|${o.usd || o.price || ""}`;
+
   function comps(x, deal, tol) {  // похожие: та же сделка+тип+город, площадь ±tol; сам объект исключён
     if (!x.area) return [];
     const lo = x.area * (1 - tol), hi = x.area * (1 + tol);
-    return DATA.filter((o) => o.hash !== x.hash && o.deal === deal && o.type === x.type &&
+    const list = DATA.filter((o) => o.hash !== x.hash && o.deal === deal && o.type === x.type &&
       o.city === x.city && o.area && o.area >= lo && o.area <= hi);
+    // схлопнуть дубли (адрес+площадь+цена): один объект, разные источники → одна запись
+    const seen = new Set(x.addr ? [dedupKey(x)] : []);   // исключаем и копии самого объекта
+    return list.filter((o) => { const k = dedupKey(o); return seen.has(k) ? false : seen.add(k); });
   }
 
   function analyze(x) {
