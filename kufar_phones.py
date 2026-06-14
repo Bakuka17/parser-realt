@@ -28,6 +28,44 @@ from pathlib import Path
 from openpyxl import load_workbook
 from playwright.async_api import async_playwright
 
+# Маскировка автоматизации (navigator.webdriver и пр.): без неё reCAPTCHA v3 у kufar
+# видит робота и молча НЕ отдаёт номер. Тот же стелс, что в realty_parser_v8.
+STEALTH_FN = None
+try:
+    from playwright_stealth import stealth_async as STEALTH_FN
+except ImportError:
+    try:
+        from playwright_stealth import Stealth
+        STEALTH_FN = Stealth().apply_stealth_async
+    except ImportError:
+        pass
+
+
+async def apply_stealth(page):
+    if not STEALTH_FN:
+        return
+    try:
+        await STEALTH_FN(page)
+    except Exception as e:
+        print(f"  (stealth недоступен: {e})")
+
+
+def load_chrome_cookies():
+    """Вытащить cookies kufar.by из твоего Chrome (где ты залогинен) → формат Playwright.
+    kufar спрятал телефон за вход; вход в автоматике невозможен (Google), поэтому берём
+    готовую залогиненную сессию из обычного Chrome."""
+    import browser_cookie3
+    out = []
+    for c in browser_cookie3.chrome(domain_name="kufar.by"):
+        ck = {"name": c.name, "value": c.value, "domain": c.domain,
+              "path": c.path or "/", "secure": bool(c.secure),
+              "httpOnly": bool(c.has_nonstandard_attr("HttpOnly")), "sameSite": "Lax"}
+        if c.expires:
+            ck["expires"] = float(c.expires)
+        out.append(ck)
+    return out
+
+
 HERE = Path(__file__).resolve().parent
 MAIN_XLSX = HERE / "commercial_realty.xlsx"
 PROFILE_DIR = HERE / ".kufar_profile"   # постоянный профиль браузера (залогиненная сессия)
@@ -238,6 +276,7 @@ async def do_login():
             str(PROFILE_DIR), headless=False, locale="ru-RU",
             user_agent=USER_AGENTS[0])
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        await apply_stealth(page)
         await page.goto("https://www.kufar.by/account", wait_until="domcontentloaded")
         print("\n→ В открывшемся окне войдите в свой аккаунт kufar (логин/пароль вводите ВЫ).")
         print("  Когда увидите, что вошли, вернитесь сюда и нажмите Enter.")
@@ -253,6 +292,8 @@ async def main():
     ap.add_argument("--headless", action="store_true", help="без видимого окна (рискованнее)")
     ap.add_argument("--force", action="store_true", help="не проверять страну IP")
     ap.add_argument("--login", action="store_true", help="войти в аккаунт kufar (один раз, руками)")
+    ap.add_argument("--chrome-cookies", action="store_true",
+                    help="взять логин kufar (cookies) из твоего Chrome — kufar спрятал телефон за вход")
     cfg = ap.parse_args()
 
     if cfg.login:
@@ -292,6 +333,14 @@ async def main():
             str(PROFILE_DIR), headless=cfg.headless, locale="ru-RU",
             user_agent=USER_AGENTS[0])
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        await apply_stealth(page)
+        if cfg.chrome_cookies:
+            try:
+                cks = load_chrome_cookies()
+                await ctx.add_cookies(cks)
+                print(f"✓ подставлено {len(cks)} cookies kufar из Chrome (сессия залогинена)")
+            except Exception as e:
+                print(f"⚠ cookies из Chrome не взялись ({e}) — идём без логина")
         print("режим:", "профиль есть (если входили — залогинен)" if PROFILE_DIR.exists()
               else "без профиля — для большего лимита войдите: --login")
         print()
