@@ -149,11 +149,11 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ## Текущее состояние данных
 
 <!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->
-`commercial_realty.xlsx` = **13393 объектов** (обновлено 13.06.2026):
-- kufar.by: 5560
-- realt.by: 5488
+`commercial_realty.xlsx` = **13496 объектов** (обновлено 14.06.2026):
+- kufar.by: 5591
+- realt.by: 5560
 - megapolis-real.by: 2345
-Телефоны: ~57%.
+Телефоны: ~58%.
 <!-- AUTO-STATE-END -->
 
 Важные оговорки (вручную, авто-блок их не трогает):
@@ -192,6 +192,14 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
    (Scaleway, hosting); с бел. IP кнопка **«Позвонить»** (НЕ «показать телефон») сама проходит
    невидимую reCAPTCHA v3, а эндпоинт **`GET api.kufar.by/search-api/v2/item/{id}/phone`**
    отдаёт чистый `{"phone":"375…"}`. Капча-solver/логин НЕ нужны.
+   ⚠ **ОБНОВЛЕНИЕ 14.06: kufar ДОБАВИЛ ЛОГИН-СТЕНУ** — телефон теперь за обязательным входом
+   («войдите, чтобы увидеть телефон»); старый способ без логина даёт `no_response`. Вход в
+   автоматике невозможен (kufar-логин у юзера через Google, Google блокит автоматизацию).
+   РЕШЕНИЕ (проверено 5/5): флаг **`--chrome-cookies`** тянет залогиненную сессию kufar из
+   обычного Chrome (browser_cookie3 → k_jwt/session) + playwright-stealth. Запуск:
+   `kufar_phones.py --limit N --chrome-cookies`. Держать аккаунт залогиненным в Chrome.
+   ⚠ Автодобор launchd сам НЕ сработает (нужен Chrome-логин + связка ключей) → kufar-телефоны
+   теперь РУЧНЫЕ. Новая зависимость: browser_cookie3.
    • Инструмент: **`kufar_phones.py`** (Playwright) — берёт kufar-строки без телефона из
      xlsx, открывает деталку, жмёт «Позвонить», ловит ответ `/phone`, дописывает в колонку
      «Телефон». ⚠ **ЗАПУСКАТЬ С ВЫКЛЮЧЕННЫМ Psiphon** (иначе гео-блок). Бэкап `.xlsx.bak`,
