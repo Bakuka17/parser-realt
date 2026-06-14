@@ -271,6 +271,14 @@
     return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
   }
   const ppmOf = (o) => (o.usd && o.area) ? o.usd / o.area : null;   // $/м² (у аренды — $/м²/мес)
+  function totalAny(o) {            // числовой итог объекта: $ (usd) либо BYN из строки цены
+    if (o.usd) return { v: o.usd, cur: "$" };
+    if (o.price && /р/.test(o.price)) {
+      const n = +o.price.split("р")[0].replace(/\D/g, "");   // цифры до «р.»
+      if (n > 0) return { v: n, cur: "р." };
+    }
+    return null;
+  }
   function kmDist(a, b) {                                           // расстояние по координатам [lat,lng]
     if (!a || !b) return null;
     const R = 6371, r = (d) => d * Math.PI / 180;
@@ -331,9 +339,13 @@
         Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>`;
     }
     const unit = x.deal === "rent" ? "/м²/мес" : "/м²";
-    const totalStr = x.usd ? money(x.usd) + (x.deal === "rent" ? "/мес" : "")
-                           : (x.price || "цена не указана");
-    const perM2 = a.ppmSelf ? ` · ${money(a.ppmSelf)}${unit}` : "";
+    const fmtCur = (v, cur) => cur === "$" ? "$" + nf.format(Math.round(v)) : nf.format(Math.round(v)) + " р.";
+    const tot = totalAny(x);                                  // {v, cur} — $ или BYN
+    const ppmSelf2 = (tot && x.area) ? tot.v / x.area : null; // цена/м² = итог ÷ площадь
+    const sane = ppmSelf2 && (tot.cur === "$" ? ppmSelf2 < 30000 : ppmSelf2 < 100000); // отсечь битые
+    const totalStr = tot ? fmtCur(tot.v, tot.cur) + (x.deal === "rent" ? "/мес" : "")
+                         : (x.price || "цена не указана");
+    const perM2 = sane ? ` · ${fmtCur(ppmSelf2, tot.cur)}${unit}` : "";
     const rows = [
       `<div class="ana-row"><span>Цена этого объекта</span><b>${esc(totalStr)}${perM2}</b></div>`,
       `<div class="ana-row"><span>Медиана по городу (${esc(x.city)}) · ${a.same.length} похож.</span>
