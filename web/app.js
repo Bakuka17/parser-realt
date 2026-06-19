@@ -195,8 +195,28 @@
     </article>`;
   }
 
+  function belretailCard(x) {
+    const phone = x.phone ? x.phone.split(/[,;]/)[0].trim() : "";
+    const callBtn = phone
+      ? `<button type="button" class="btn btn--call" data-phone="${esc(phone)}" title="Скопировать ${esc(fmtPhone(phone))}">${ICON.copy}<span class="num">${esc(fmtPhone(phone))}</span></button>`
+      : `<span class="btn btn--nophone">${ICON.phone}нет телефона</span>`;
+    const url = safeUrl(x.url);
+    const ext = url
+      ? `<a class="btn btn--ghost btn--icon" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Открыть на belretail" aria-label="Открыть на belretail">${ICON.ext}</a>` : "";
+    return `<article class="lead lead--company" data-hash="${esc(x.hash)}">
+      <div class="lead__body">
+        <div class="lead__top"><span class="lead__kind">${esc(x.type || "Компания")}</span>
+          <span class="lead__src">belretail.by</span></div>
+        <div class="company-name">${esc(x.title || "—")}</div>
+      </div>
+      <div class="lead__actions">${callBtn}</div>
+      <div class="lead__actions2">${ext}</div>
+    </article>`;
+  }
+
   function cardHtml(x) {
     if (x.deal === "auction") return auctionCard(x);
+    if (x.deal === "belretail") return belretailCard(x);
     const dealLabel = x.deal === "sale" ? "Продажа" : "Аренда";
     const media = x.photo
       ? `<img src="${esc(x.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`

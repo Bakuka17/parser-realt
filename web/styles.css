@@ -508,3 +508,7 @@ h1 { margin: 0; }
 .ana-self { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: var(--fs-sm);
   margin-bottom: var(--s2); padding-bottom: var(--s2); border-bottom: 1px solid var(--border); }
 .ana-self svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--accent); }
+
+/* карточка компании belretail (без фото/цены) */
+.lead--company { min-height: auto; }
+.company-name { font-size: var(--fs-lg); font-weight: 700; color: var(--ink); margin: 6px 0 2px; line-height: 1.25; }

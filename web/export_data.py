@@ -17,6 +17,7 @@ from cities import normalize_city    # нормализация населённ
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "commercial_realty.xlsx"
 OUT = ROOT / "web" / "data.js"
+BELRETAIL_XLSX = ROOT / "belretail_phones.xlsx"   # телефоны компаний (belretail_phones.py)
 PHOTO_CACHE_F = ROOT / "web" / "photo_cache.json"
 
 # realt не отдаёт фото в листинге → дашборд тянет og:image на лету и копит их в
@@ -236,6 +237,40 @@ def load_auctions(ws):
     return out
 
 
+def load_belretail():
+    """belretail_phones.xlsx → элементы deal='belretail', ОДИН ТЕЛЕФОН = ОДНА СТРОКА.
+    Файл собирает belretail_phones.py (с бел. IP); если его нет — просто пропускаем."""
+    if not BELRETAIL_XLSX.exists():
+        return []
+    import hashlib
+    wb = load_workbook(BELRETAIL_XLSX, read_only=True)
+    ws = wb.active
+    rows = ws.iter_rows(values_only=True)
+    next(rows, None)            # шапка: Категория, Компания, Телефон, Ссылка
+    out = []
+    for r in rows:
+        if not r or all(c is None for c in r):
+            continue
+        cat = clean(r[0] if len(r) > 0 else "")
+        comp = clean(r[1] if len(r) > 1 else "")
+        phones = clean(r[2] if len(r) > 2 else "")
+        url = clean(r[3] if len(r) > 3 else "")
+        if not comp:
+            continue
+        plist = [p.strip() for p in phones.split(",") if p.strip()] or [""]
+        for ph in plist:
+            h = hashlib.md5(f"belretail|{comp}|{ph}".encode("utf-8")).hexdigest()[:12]
+            out.append({
+                "deal": "belretail", "sheet": "belretail", "row": 0,
+                "type": cat, "title": comp, "phone": ph, "url": url,
+                "addr": "", "city": "", "area": None, "price": "", "usd": None,
+                "date": "", "floor": "", "source": "belretail.by",
+                "photo": "", "coords": None, "desc": "", "hash": h,
+            })
+    wb.close()
+    return out
+
+
 def main():
     wb = load_workbook(SRC, read_only=True)
     items = []
@@ -245,6 +280,7 @@ def main():
     if "Аукционы" in wb.sheetnames:
         items += load_auctions(wb["Аукционы"])
     wb.close()
+    items += load_belretail()      # компании belretail (отдельный файл, один тел. = одна строка)
 
     meta = {
         "total": len(items),
@@ -255,6 +291,7 @@ def main():
         "rent": sum(1 for x in items if x["deal"] == "rent"),
         "auction": sum(1 for x in items if x["deal"] == "auction"),
         "auctionFuture": sum(1 for x in items if x["deal"] == "auction" and x.get("future")),
+        "belretail": sum(1 for x in items if x["deal"] == "belretail"),
         "generated": __import__("datetime").datetime.now().strftime("%d.%m.%Y %H:%M"),
     }
 
