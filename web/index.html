@@ -80,6 +80,12 @@
       <select id="source" aria-label="Источник"></select>
     </label>
 
+    <div class="field field--range">
+      <span class="field__label">Площадь, м²</span>
+      <input id="areaMin" type="number" min="0" inputmode="numeric" placeholder="от" autocomplete="off" aria-label="Площадь от, м²" />
+      <input id="areaMax" type="number" min="0" inputmode="numeric" placeholder="до" autocomplete="off" aria-label="Площадь до, м²" />
+    </div>
+
     <label class="field field--select">
       <span class="field__label">Сортировка</span>
       <select id="sort" aria-label="Сортировка">

@@ -80,7 +80,8 @@
 
   // ---------- state ----------
   const state = { q: "", deals: new Set(), city: "", type: "", source: "", sort: "date",
-                  phoneOnly: false, photoOnly: false, auctionPast: false };
+                  phoneOnly: false, photoOnly: false, auctionPast: false,
+                  areaMin: null, areaMax: null };
   let filtered = DATA;
   let shown = 0;
   const savedSet = new Set(); // хэши уже сохранённых (сервер знает; кнопка сразу зелёная)
@@ -114,6 +115,8 @@
       if (state.city && x.city !== state.city) return false;
       if (state.type && x.type !== state.type) return false;
       if (state.source && x.source !== state.source) return false;
+      if (state.areaMin != null && !(x.area >= state.areaMin)) return false;
+      if (state.areaMax != null && !(x.area <= state.areaMax)) return false;
       if (state.phoneOnly && !x.phone) return false;
       if (state.photoOnly && !x.photo) return false;
       // аукционы: по умолчанию скрываем прошедшие (дата уже прошла)
@@ -279,7 +282,8 @@
         (shown < total ? ` · показано ${nf.format(shown)}` : "")
       : "";
     const dirty = state.q || state.deals.size || state.city || state.type ||
-                  state.source || state.phoneOnly || state.photoOnly;
+                  state.source || state.phoneOnly || state.photoOnly ||
+                  state.areaMin != null || state.areaMax != null;
     $("#reset").hidden = !dirty;
   }
 
@@ -601,6 +605,10 @@
     $("#q").addEventListener("input", debounce((e) => { state.q = e.target.value; apply(); }, 130));
     ["city", "type", "source", "sort"].forEach((id) =>
       $("#" + id).addEventListener("change", (e) => { state[id] = e.target.value; apply(); }));
+    ["areaMin", "areaMax"].forEach((id) =>
+      $("#" + id).addEventListener("input", debounce((e) => {
+        const v = parseFloat(e.target.value); state[id] = isFinite(v) ? v : null; apply();
+      }, 200)));
     $("#phoneOnly").addEventListener("change", (e) => { state.phoneOnly = e.target.checked; apply(); });
     $("#photoOnly").addEventListener("change", (e) => { state.photoOnly = e.target.checked; apply(); });
     $("#auctionPast").addEventListener("change", (e) => { state.auctionPast = e.target.checked; apply(); });
@@ -616,10 +624,12 @@
 
     function reset() {
       Object.assign(state, { q: "", city: "", type: "", source: "",
-                             sort: "date", phoneOnly: false, photoOnly: false, auctionPast: false });
+                             sort: "date", phoneOnly: false, photoOnly: false, auctionPast: false,
+                             areaMin: null, areaMax: null });
       state.deals.clear();
       $("#q").value = ""; $("#city").value = ""; $("#type").value = "";
       $("#source").value = ""; $("#sort").value = "date";
+      $("#areaMin").value = ""; $("#areaMax").value = "";
       $("#phoneOnly").checked = false; $("#photoOnly").checked = false;
       $("#auctionPast").checked = false; $("#pastWrap").hidden = true;
       document.querySelectorAll(".dealChk").forEach((cb) => (cb.checked = false));

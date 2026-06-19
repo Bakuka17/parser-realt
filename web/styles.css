@@ -200,6 +200,22 @@ h1 { margin: 0; }
   outline: none; border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-weak);
 }
+.field--range { position: relative; gap: 6px; }
+.field--range .field__label {
+  position: absolute; left: 10px; top: 4px;
+  font-size: 10px; line-height: 1; color: var(--ink-3); pointer-events: none;
+}
+.field--range input {
+  width: 66px; height: 44px; padding: 16px 8px 2px;
+  font: inherit; font-size: var(--fs-sm); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); transition: border-color .15s, box-shadow .15s;
+}
+.field--range input::placeholder { color: var(--ink-3); }
+.field--range input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
 
 /* segmented control — deal type */
 .seg {
