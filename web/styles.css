@@ -448,6 +448,8 @@ h1 { margin: 0; }
 }
 .btn-update:hover { background: var(--accent-press); }
 .btn-update:disabled { opacity: .55; cursor: default; }
+.btn-update--alt { background: var(--surface-3); color: var(--ink); border-color: var(--border); }
+.btn-update--alt:hover { background: var(--border); }
 .btn-update__ico { width: 16px; height: 16px; display: inline-flex; }
 .btn-update:disabled .btn-update__ico { animation: spin 1s linear infinite; }
 

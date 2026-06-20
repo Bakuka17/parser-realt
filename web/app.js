@@ -658,10 +658,12 @@
     apply();
   }
 
-  // ---------- обновление базы ----------
+  // ---------- обновление базы / аукционов ----------
   function wireUpdate() {
     const modal = $("#updModal"), log = $("#updLog"), spin = $("#updSpin");
-    const stop = $("#updStop"), close = $("#updClose"), btn = $("#btnUpdate");
+    const stop = $("#updStop"), close = $("#updClose");
+    const btnBase = $("#btnUpdate"), btnAuc = $("#btnAuctions");
+    const title = $("#updTitle"), hint = modal.querySelector(".modal__hint");
     let poll = null, doneReload = false;
 
     const open = () => { modal.hidden = false; };
@@ -676,26 +678,33 @@
       log.scrollTop = log.scrollHeight;
       spin.hidden = !s.running;
       stop.hidden = !s.running;
-      btn.disabled = s.running;
+      btnBase.disabled = s.running; btnAuc.disabled = s.running;
       if (!s.running && poll) {
         clearInterval(poll); poll = null;
         if (doneReload) {
           doneReload = false;
-          toast("База обновлена — перезагружаю данные…");
+          toast("Готово — перезагружаю данные…");
           setTimeout(() => location.reload(), 1200);
         }
       }
     }
 
-    btn.addEventListener("click", async () => {
+    async function start(target, titleText, hintText) {
       if (!hasBackend) return toast("Запустите дашборд через Дашборд.command (нужен сервер)");
+      title.textContent = titleText;
+      hint.textContent = hintText;
       open();
-      const res = await postJSON("/api/update", {});
+      const res = await postJSON("/api/update", { target });
       if (res.error) { toast(res.error); }
       doneReload = true;
       if (!poll) poll = setInterval(tick, 1500);
       tick();
-    });
+    }
+
+    btnBase.addEventListener("click", () => start("realty", "Обновление базы",
+      "Три шага: сбор свежих объявлений → добор телефонов kufar (нужен белорусский IP, Psiphon выключен) → обновление дашборда. Может занять много минут; окно можно закрыть, процесс идёт в фоне."));
+    btnAuc.addEventListener("click", () => start("auctions", "Обновление аукционов",
+      "Два шага: сбор свежих аукционов с 10 площадок → обновление дашборда. Может занять время; окно можно закрыть, процесс идёт в фоне."));
 
     stop.addEventListener("click", async () => {
       await postJSON("/api/update/stop", {});

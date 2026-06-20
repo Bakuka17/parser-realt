@@ -75,24 +75,30 @@ def _stream(cmd):
     return _proc.returncode
 
 
-def _run_update():
+def _run_update(target="realty"):
     global _proc
     py = sys.executable
     warn = ""
     if (ROOT / "~$commercial_realty.xlsx").exists():
         warn = ("⚠ commercial_realty.xlsx сейчас ОТКРЫТ в Excel — запись может не пройти.\n"
                 "  Закройте файл в Excel и запустите обновление снова.\n\n")
+    head = ("[1/2] Сбор аукционов (collect_auctions.py — 10 площадок)…\n" if target == "auctions"
+            else "[1/3] Сбор объявлений (collect_realty.py, инкрементально)…\n")
     JOB.update(running=True, started=datetime.now().strftime("%H:%M:%S"),
-               finished="", rc=None,
-               log=warn + "[1/3] Сбор объявлений (collect_realty.py, инкрементально)…\n")
+               finished="", rc=None, log=warn + head)
     try:
-        rc = _stream([py, "-u", "collect_realty.py"])
-        JOB["log"] += (f"\n[1/3] Сбор завершён (код {rc}).\n"
-                       f"[2/3] Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен "
-                       f"белорусский IP — Psiphon должен быть ВЫКЛЮЧЕН)…\n")
-        # --chrome-cookies: kufar спрятал телефон за логин, берём сессию из Chrome
-        _stream([py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"])
-        JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
+        if target == "auctions":
+            rc = _stream([py, "-u", "collect_auctions.py"])
+            JOB["log"] += (f"\n[1/2] Сбор аукционов завершён (код {rc}).\n"
+                           "[2/2] Ре-экспорт данных для дашборда…\n")
+        else:
+            rc = _stream([py, "-u", "collect_realty.py"])
+            JOB["log"] += (f"\n[1/3] Сбор завершён (код {rc}).\n"
+                           f"[2/3] Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен "
+                           f"белорусский IP — Psiphon должен быть ВЫКЛЮЧЕН)…\n")
+            # --chrome-cookies: kufar спрятал телефон за логин, берём сессию из Chrome
+            _stream([py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"])
+            JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
         ex = subprocess.run([py, "web/export_data.py"], cwd=str(ROOT),
                             capture_output=True, text=True)
         JOB["log"] = (JOB["log"] + ex.stdout + ex.stderr)[-8000:]
@@ -375,7 +381,10 @@ class Handler(SimpleHTTPRequestHandler):
         if route == "/api/update":
             if JOB["running"]:
                 return self._send_json({"ok": False, "error": "уже выполняется"})
-            threading.Thread(target=_run_update, daemon=True).start()
+            target = (self._read_json().get("target") or "realty").strip()
+            if target not in ("realty", "auctions"):
+                target = "realty"
+            threading.Thread(target=_run_update, args=(target,), daemon=True).start()
             time.sleep(0.2)
             return self._send_json({"ok": True})
         if route == "/api/update/stop":
