@@ -80,8 +80,7 @@
 
   // ---------- state ----------
   const state = { q: "", deals: new Set(), city: "", type: "", source: "", sort: "date",
-                  phoneOnly: false, photoOnly: false, auctionPast: false,
-                  areaMin: null, areaMax: null };
+                  auctionPast: false, areaMin: null, areaMax: null };
   let filtered = DATA;
   let shown = 0;
   const savedSet = new Set(); // хэши уже сохранённых (сервер знает; кнопка сразу зелёная)
@@ -117,8 +116,6 @@
       if (state.source && x.source !== state.source) return false;
       if (state.areaMin != null && !(x.area >= state.areaMin)) return false;
       if (state.areaMax != null && !(x.area <= state.areaMax)) return false;
-      if (state.phoneOnly && !x.phone) return false;
-      if (state.photoOnly && !x.photo) return false;
       // аукционы: по умолчанию скрываем прошедшие (дата уже прошла)
       if (x.deal === "auction" && !state.auctionPast && x.future === false) return false;
       if (q) {
@@ -217,9 +214,41 @@
     </article>`;
   }
 
+  function bankCard(x) {
+    const media = x.photo
+      ? `<img src="${esc(x.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`
+      : `<div class="lead__ph">${ICON.building}<span>${esc(x.type || "Объект")}</span></div>`;
+    const phone = x.phone ? x.phone.split(/[,;]/)[0].trim() : "";
+    const callBtn = phone
+      ? `<button type="button" class="btn btn--call" data-phone="${esc(phone)}" title="Скопировать ${esc(fmtPhone(phone))}">${ICON.copy}<span class="num">${esc(fmtPhone(phone))}</span></button>`
+      : `<span class="btn btn--nophone">${ICON.phone}нет телефона</span>`;
+    const url = safeUrl(x.url);
+    const ext = url
+      ? `<a class="btn btn--ghost btn--icon" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Открыть на сайте банка" aria-label="Открыть на сайте банка">${ICON.ext}</a>` : "";
+    const mapQ = (x.addr || x.city) ? `https://yandex.ru/maps/?text=${encodeURIComponent(((x.city || "") + " " + (x.addr || "")).trim())}` : "";
+    const map = mapQ
+      ? `<a class="btn btn--ghost btn--icon" href="${esc(mapQ)}" target="_blank" rel="noopener noreferrer" title="Открыть на Яндекс.Картах" aria-label="Карта">${ICON.pin}</a>` : "";
+    const bits = [];
+    if (x.area) bits.push(`${nf.format(x.area)} м²`);
+    return `<article class="lead lead--auc" data-hash="${esc(x.hash)}">
+      <div class="lead__media"><span class="badge badge--bank">Банк</span>${media}</div>
+      <div class="lead__body">
+        <div class="lead__top"><span class="lead__kind">${esc(x.type || "Объект")}</span>
+          ${x.source ? `<span class="lead__src">${esc(x.source)}</span>` : ""}</div>
+        ${x.title ? `<div class="auc-title">${esc(x.title)}</div>` : ""}
+        <div class="lead__price">${x.price ? `<b>${esc(x.price)}</b>` : '<span class="noprice">Цена по запросу</span>'}</div>
+        <div class="lead__meta">${bits.map((b) => `<span>${b}</span>`).join("")}</div>
+        <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}</div>
+      </div>
+      <div class="lead__actions">${callBtn}</div>
+      <div class="lead__actions2">${map}${ext}</div>
+    </article>`;
+  }
+
   function cardHtml(x) {
     if (x.deal === "auction") return auctionCard(x);
     if (x.deal === "belretail") return belretailCard(x);
+    if (x.deal === "bank") return bankCard(x);
     const dealLabel = x.deal === "sale" ? "Продажа" : "Аренда";
     const media = x.photo
       ? `<img src="${esc(x.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.__imgFail(this)">`
@@ -282,8 +311,7 @@
         (shown < total ? ` · показано ${nf.format(shown)}` : "")
       : "";
     const dirty = state.q || state.deals.size || state.city || state.type ||
-                  state.source || state.phoneOnly || state.photoOnly ||
-                  state.areaMin != null || state.areaMax != null;
+                  state.source || state.areaMin != null || state.areaMax != null;
     $("#reset").hidden = !dirty;
   }
 
@@ -609,8 +637,6 @@
       $("#" + id).addEventListener("input", debounce((e) => {
         const v = parseFloat(e.target.value); state[id] = isFinite(v) ? v : null; apply();
       }, 200)));
-    $("#phoneOnly").addEventListener("change", (e) => { state.phoneOnly = e.target.checked; apply(); });
-    $("#photoOnly").addEventListener("change", (e) => { state.photoOnly = e.target.checked; apply(); });
     $("#auctionPast").addEventListener("change", (e) => { state.auctionPast = e.target.checked; apply(); });
 
     document.querySelectorAll(".dealChk").forEach((cb) => {
@@ -624,13 +650,12 @@
 
     function reset() {
       Object.assign(state, { q: "", city: "", type: "", source: "",
-                             sort: "date", phoneOnly: false, photoOnly: false, auctionPast: false,
+                             sort: "date", auctionPast: false,
                              areaMin: null, areaMax: null });
       state.deals.clear();
       $("#q").value = ""; $("#city").value = ""; $("#type").value = "";
       $("#source").value = ""; $("#sort").value = "date";
       $("#areaMin").value = ""; $("#areaMax").value = "";
-      $("#phoneOnly").checked = false; $("#photoOnly").checked = false;
       $("#auctionPast").checked = false; $("#pastWrap").hidden = true;
       document.querySelectorAll(".dealChk").forEach((cb) => (cb.checked = false));
       apply();
@@ -662,7 +687,7 @@
   function wireUpdate() {
     const modal = $("#updModal"), log = $("#updLog"), spin = $("#updSpin");
     const stop = $("#updStop"), close = $("#updClose");
-    const btnBase = $("#btnUpdate"), btnAuc = $("#btnAuctions");
+    const btnBase = $("#btnUpdate"), btnAuc = $("#btnAuctions"), btnBanks = $("#btnBanks");
     const title = $("#updTitle"), hint = modal.querySelector(".modal__hint");
     let poll = null, doneReload = false;
 
@@ -678,7 +703,7 @@
       log.scrollTop = log.scrollHeight;
       spin.hidden = !s.running;
       stop.hidden = !s.running;
-      btnBase.disabled = s.running; btnAuc.disabled = s.running;
+      btnBase.disabled = s.running; btnAuc.disabled = s.running; btnBanks.disabled = s.running;
       if (!s.running && poll) {
         clearInterval(poll); poll = null;
         if (doneReload) {
@@ -705,6 +730,8 @@
       "Три шага: сбор свежих объявлений → добор телефонов kufar (нужен белорусский IP, Psiphon выключен) → обновление дашборда. Может занять много минут; окно можно закрыть, процесс идёт в фоне."));
     btnAuc.addEventListener("click", () => start("auctions", "Обновление аукционов",
       "Два шага: сбор свежих аукционов с 10 площадок → обновление дашборда. Может занять время; окно можно закрыть, процесс идёт в фоне."));
+    btnBanks.addEventListener("click", () => start("banks", "Обновление банков и компаний",
+      "Сбор недвижимости банков (Белинвест и др.) + телефонов компаний belretail → обновление дашборда. belretail требует белорусского IP. Окно можно закрыть, процесс идёт в фоне."));
 
     stop.addEventListener("click", async () => {
       await postJSON("/api/update/stop", {});

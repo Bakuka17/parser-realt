@@ -24,7 +24,7 @@ PY = sys.executable  # интерпретатор текущего venv
 
 # Порядок площадок (как в scheduled_run.sh). Сервер-HTML быстрые — раньше; тяжёлые — позже.
 SITES = ["mgcn", "ipmtorgi", "torgi24", "auction24", "gki", "bks",
-         "eauction", "deloocenka", "konfiskat", "torgigov", "beltorgi"]
+         "eauction", "deloocenka", "konfiskat", "torgigov", "beltorgi", "fcon", "cpo"]
 
 
 def run_site(name: str, mgcn_full: bool) -> tuple[str, int, float]:

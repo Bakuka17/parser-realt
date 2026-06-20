@@ -271,6 +271,54 @@ def load_belretail():
     return out
 
 
+def load_banks():
+    """Все banks_*.xlsx (схема AUCTION_COLUMNS) → элементы deal='bank'.
+    Каждый банк-парсер пишет свой banks_{name}.xlsx — новый банк подхватится сам, без правок."""
+    out = []
+    for f in sorted(ROOT.glob("banks_*.xlsx")):
+        if f.name.endswith(".tmp.xlsx"):
+            continue
+        try:
+            wb = load_workbook(f, read_only=True)
+        except Exception:
+            continue
+        ws = wb.active
+        rows = ws.iter_rows(values_only=True)
+        next(rows, None)            # строка 1 — плашка
+        header = next(rows, None)   # строка 2 — шапка (AUCTION_COLUMNS)
+        if not header:
+            wb.close(); continue
+        idx = {}
+        for i, name in enumerate(header):
+            name = str(name).strip() if name is not None else ""
+            if name in COLMAP_AUC:
+                idx[COLMAP_AUC[name]] = i
+        for r in rows:
+            if not r or all(c is None for c in r):
+                continue
+            rec = {k: clean(r[i]) if i < len(r) else "" for k, i in idx.items()}
+            if not rec.get("hash") and not rec.get("url"):
+                continue
+            out.append({
+                "deal": "bank", "sheet": "Банки", "row": 0,
+                "type": rec.get("type", "") or "Объект",
+                "title": rec.get("title", ""),
+                "phone": ", ".join(normalize_phones(rec.get("phone", ""))),
+                "url": rec.get("url", ""),
+                "addr": rec.get("addr", ""),
+                "city": normalize_city(rec.get("city", "")),
+                "area": to_float(rec.get("area", "")),
+                "price": rec.get("price", ""),     # «Начальная цена» (BYN)
+                "source": rec.get("source", ""),   # домен банка
+                "photo": first_photo(rec.get("photo", "")),
+                "coords": None,
+                "desc": (rec.get("desc", "")[:200]),
+                "hash": rec.get("hash", ""),
+            })
+        wb.close()
+    return out
+
+
 def main():
     wb = load_workbook(SRC, read_only=True)
     items = []
@@ -281,6 +329,7 @@ def main():
         items += load_auctions(wb["Аукционы"])
     wb.close()
     items += load_belretail()      # компании belretail (отдельный файл, один тел. = одна строка)
+    items += load_banks()          # залоговая недвижимость банков (banks_*.xlsx, deal='bank')
 
     meta = {
         "total": len(items),
@@ -292,6 +341,7 @@ def main():
         "auction": sum(1 for x in items if x["deal"] == "auction"),
         "auctionFuture": sum(1 for x in items if x["deal"] == "auction" and x.get("future")),
         "belretail": sum(1 for x in items if x["deal"] == "belretail"),
+        "bank": sum(1 for x in items if x["deal"] == "bank"),
         "generated": __import__("datetime").datetime.now().strftime("%d.%m.%Y %H:%M"),
     }
 

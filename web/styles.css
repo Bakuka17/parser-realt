@@ -312,6 +312,7 @@ h1 { margin: 0; }
 .badge--sale { background: var(--sale-bg); color: var(--sale); }
 .badge--rent { background: var(--rent-bg); color: var(--rent); }
 .badge--auction { background: var(--accent-weak); color: var(--accent); }
+.badge--bank { background: oklch(0.93 0.05 150); color: oklch(0.42 0.12 150); }
 
 .lead__body { padding: var(--s3) var(--s4) var(--s2); display: grid; gap: 6px; }
 .lead__top {

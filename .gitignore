@@ -26,3 +26,5 @@ web/photo_cache.json
 *.bak
 .kufar_profile/
 .kufar_nophone.json
+# разведочные HTML-дампы (probe_1bv.py)
+probe_1bv/

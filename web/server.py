@@ -83,6 +83,7 @@ def _run_update(target="realty"):
         warn = ("⚠ commercial_realty.xlsx сейчас ОТКРЫТ в Excel — запись может не пройти.\n"
                 "  Закройте файл в Excel и запустите обновление снова.\n\n")
     head = ("[1/2] Сбор аукционов (collect_auctions.py — 10 площадок)…\n" if target == "auctions"
+            else "[1/3] Сбор недвижимости банков (collect_banks.py)…\n" if target == "banks"
             else "[1/3] Сбор объявлений (collect_realty.py, инкрементально)…\n")
     JOB.update(running=True, started=datetime.now().strftime("%H:%M:%S"),
                finished="", rc=None, log=warn + head)
@@ -91,6 +92,12 @@ def _run_update(target="realty"):
             rc = _stream([py, "-u", "collect_auctions.py"])
             JOB["log"] += (f"\n[1/2] Сбор аукционов завершён (код {rc}).\n"
                            "[2/2] Ре-экспорт данных для дашборда…\n")
+        elif target == "banks":
+            rc = _stream([py, "-u", "collect_banks.py"])
+            JOB["log"] += (f"\n[1/3] Банки собраны (код {rc}).\n"
+                           "[2/3] Сбор телефонов компаний belretail (нужен бел. IP)…\n")
+            _stream([py, "-u", "belretail_phones.py"])
+            JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
         else:
             rc = _stream([py, "-u", "collect_realty.py"])
             JOB["log"] += (f"\n[1/3] Сбор завершён (код {rc}).\n"
@@ -382,7 +389,7 @@ class Handler(SimpleHTTPRequestHandler):
             if JOB["running"]:
                 return self._send_json({"ok": False, "error": "уже выполняется"})
             target = (self._read_json().get("target") or "realty").strip()
-            if target not in ("realty", "auctions"):
+            if target not in ("realty", "auctions", "banks"):
                 target = "realty"
             threading.Thread(target=_run_update, args=(target,), daemon=True).start()
             time.sleep(0.2)

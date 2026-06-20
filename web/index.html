@@ -25,6 +25,10 @@
       <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
       <span>Обновить аукционы</span>
     </button>
+    <button type="button" class="btn-update btn-update--alt" id="btnBanks" title="Собрать свежую недвижимость банков и компании belretail">
+      <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
+      <span>Обновить банки</span>
+    </button>
   </header>
 
   <div class="modal" id="updModal" hidden>
@@ -67,6 +71,7 @@
       <label class="chk"><input type="checkbox" class="dealChk" value="rent" autocomplete="off" /> Аренда</label>
       <label class="chk"><input type="checkbox" class="dealChk" value="auction" autocomplete="off" /> Аукционы</label>
       <label class="chk"><input type="checkbox" class="dealChk" value="belretail" autocomplete="off" /> Компании</label>
+      <label class="chk"><input type="checkbox" class="dealChk" value="bank" autocomplete="off" /> Банки</label>
     </div>
 
     <label class="field field--select">
@@ -101,8 +106,6 @@
     </label>
 
     <div class="toggles">
-      <label class="chk"><input type="checkbox" id="phoneOnly" /> С&nbsp;телефоном</label>
-      <label class="chk"><input type="checkbox" id="photoOnly" /> С&nbsp;фото</label>
       <label class="chk" id="pastWrap" hidden><input type="checkbox" id="auctionPast" /> Прошедшие&nbsp;аукционы</label>
     </div>
   </div>
