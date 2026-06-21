@@ -96,6 +96,8 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
                 it["Телефон"] = A.extract_phones(dhtml)
                 md = re.search(r'(?i)задат\w+.{0,50}?(\d[\d\s.,]*)\s*(?:BYN|руб)', dtext)
                 it["Задаток"] = A.parse_price(md.group(0)) if md else ""
+                if not it["Начальная цена"]:   # цены не было в листинге — берём с детали
+                    it["Начальная цена"] = A.extract_start_price(dtext)
             it["Хэш"] = A.make_hash(nu, it["Объект"])
             new.append(it)
             print(f"  + {it['Объект'][:42]} | {it['Начальная цена'] or '—'} | {it['Дата аукциона'] or '—'}")
