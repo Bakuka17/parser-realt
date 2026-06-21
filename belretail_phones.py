@@ -95,7 +95,7 @@ def main():
         print(f"  {name}: {len(rows)} компаний")
         time.sleep(1.5)   # вежливая пауза между категориями
 
-    for col, w in zip("ABCD", (24, 34, 28, 52)):
+    for col, w in zip("ABCD", (24, 34, 28, 52), strict=False):
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A2"
     wb.save(OUT)
