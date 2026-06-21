@@ -200,22 +200,27 @@ h1 { margin: 0; }
   outline: none; border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-weak);
 }
-.field--range { position: relative; gap: 6px; }
+/* фильтр диапазона площади — единое поле с рамкой, как у .field--select */
+.field--range {
+  position: relative; flex: none; display: flex; align-items: center; gap: 2px;
+  height: 44px; padding: 14px 10px 2px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  transition: border-color .15s, box-shadow .15s;
+}
+.field--range:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
 .field--range .field__label {
-  position: absolute; left: 10px; top: 4px;
+  position: absolute; left: 10px; top: 4px; white-space: nowrap;
   font-size: 10px; line-height: 1; color: var(--ink-3); pointer-events: none;
 }
 .field--range input {
-  width: 66px; height: 44px; padding: 16px 8px 2px;
-  font: inherit; font-size: var(--fs-sm); color: var(--ink);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r); transition: border-color .15s, box-shadow .15s;
+  width: 46px; border: 0; background: transparent; outline: none;
+  -webkit-appearance: none; appearance: none;
+  font: inherit; font-size: var(--fs-sm); color: var(--ink); text-align: center;
 }
+.field--range input::-webkit-outer-spin-button,
+.field--range input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .field--range input::placeholder { color: var(--ink-3); }
-.field--range input:focus {
-  outline: none; border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-weak);
-}
+.field--range .range-sep { color: var(--ink-3); font-size: var(--fs-sm); user-select: none; }
 
 /* segmented control — deal type */
 .seg {
@@ -296,7 +301,7 @@ h1 { margin: 0; }
   display: grid; place-items: center; overflow: hidden;
 }
 .lead__media img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  width: 100%; height: 100%; object-fit: contain; display: block;
 }
 .lead__ph {
   display: grid; place-items: center; gap: 6px; color: var(--ink-3);

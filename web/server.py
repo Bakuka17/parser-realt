@@ -347,6 +347,12 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def end_headers(self):
+        # WKWebView (RealtyApp) жёстко кэширует css/js/html → правки не видны без переустановки.
+        # Запрещаем кэш статики, чтобы изменения подхватывались сразу после reload.
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        super().end_headers()
+
     def _send_json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)

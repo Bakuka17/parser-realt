@@ -157,7 +157,7 @@ def main() -> None:
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     p.add_argument("--sources", default=",".join(ALL_SOURCES),
                    help="через запятую: realt,megapolis,kufar (по умолчанию все)")
-    p.add_argument("--city", default="minsk", help="город для kufar (minsk|belarus|...)")
+    p.add_argument("--city", default="belarus", help="город для kufar (belarus=вся РБ, дефолт | minsk | ...)")
     p.add_argument("--max-pages", type=int, default=100)
     p.add_argument("--full", action="store_true", help="полный перепрогон всех источников")
     p.add_argument("--no-realt-details", action="store_true", help="realt без захода в карточки")
