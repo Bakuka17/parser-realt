@@ -13,6 +13,7 @@
 import contextlib
 import html
 import json
+import os
 import re
 import socket
 import socketserver
@@ -35,7 +36,7 @@ DATA_JS = WEB_DIR / "data.js"
 SAVED_DIR = WEB_DIR / "saved"
 PHOTOS_CACHE_DIR = WEB_DIR / "photos_cache"   # локальный кэш фото (см. /img ниже)
 MAIN_XLSX = ROOT / "commercial_realty.xlsx"
-START_PORT = 8765
+START_PORT = int(os.environ.get("PORT") or 8765)   # preview/тест задаёт PORT; иначе дефолт
 SHEETS = {"Продажа", "Аренда", "Аукционы"}  # белый список листов для AppleScript
 KUFAR_PHONE_LIMIT = 70   # сколько телефонов kufar добирать за одно «Обновить базу».
                          # ⚠ kufar придушивает ~после 25 раскрытий/сессию (даже залогиненным):

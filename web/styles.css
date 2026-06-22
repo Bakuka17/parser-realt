@@ -301,7 +301,7 @@ h1 { margin: 0; }
   display: grid; place-items: center; overflow: hidden;
 }
 .lead__media img {
-  width: 100%; height: 100%; object-fit: contain; display: block;
+  width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;
 }
 .lead__ph {
   display: grid; place-items: center; gap: 6px; color: var(--ink-3);
