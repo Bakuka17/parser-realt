@@ -23,6 +23,7 @@ dialogs/
 web/data.js
 web/saved/
 web/photo_cache.json
+web/photos_cache/
 *.bak
 .kufar_profile/
 .kufar_nophone.json

@@ -33,6 +33,7 @@ WEB_DIR = Path(__file__).resolve().parent
 ROOT = WEB_DIR.parent
 DATA_JS = WEB_DIR / "data.js"
 SAVED_DIR = WEB_DIR / "saved"
+PHOTOS_CACHE_DIR = WEB_DIR / "photos_cache"   # локальный кэш фото (см. /img ниже)
 MAIN_XLSX = ROOT / "commercial_realty.xlsx"
 START_PORT = 8765
 SHEETS = {"Продажа", "Аренда", "Аукционы"}  # белый список листов для AppleScript
@@ -110,6 +111,13 @@ def _run_update(target="realty"):
                             capture_output=True, text=True)
         JOB["log"] = (JOB["log"] + ex.stdout + ex.stderr)[-8000:]
         load_index()
+        # прогрев фото-кэша: докачиваем фото новых объектов, чтобы карточки были
+        # сразу с фото (идемпотентно — уже скачанное пропускается; --limit держит шаг
+        # коротким на инкременте). Полный первичный прогрев — web/prefetch_photos.py.
+        JOB["log"] += "\n[+] Прогрев фото-кэша (новые объекты)…\n"
+        pf = subprocess.run([py, "web/prefetch_photos.py", "--limit", "2000"],
+                            cwd=str(ROOT), capture_output=True, text=True)
+        JOB["log"] = (JOB["log"] + pf.stdout[-1200:])[-8000:]
         JOB.update(rc=rc)
         JOB["log"] += "\n✅ Готово. Обновите страницу.\n"
     except Exception as e:  # noqa: BLE001
@@ -194,6 +202,72 @@ def _lookup(hsh):
         load_index()
         it = INDEX.get(hsh)
     return it
+
+
+# ---- локальный фото-кэш: дашборд грузит фото с localhost, а не с бел-CDN напрямую ----
+# Браузерная пачка из ~48 параллельных запросов к rms.kufar.by под VPN (иностранный IP)
+# стопорится — серые карточки и недогруз («обрезанное»). Сервер тянет ПОЛНОразмер
+# ПОСЛЕДОВАТЕЛЬНО (семафор) — это проверено рабочим под тем же VPN — и кладёт на диск;
+# дальше отдаём фото с диска мгновенно, независимо от IP/VPN.
+FETCH_SEM = threading.Semaphore(3)        # не душить источник параллельной пачкой
+_IMG_CT = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+def _cached_photo(hsh):
+    for ext in (".jpg", ".png", ".webp"):
+        p = PHOTOS_CACHE_DIR / (hsh + ext)
+        if p.exists():
+            return p
+    return None
+
+
+def _best_photo_url(it):
+    """Лучший URL фото: полноразмер kufar (gallery), иначе og:image с деталки объекта."""
+    u = it.get("photo") or ""
+    if u:
+        return u.replace("/v1/list_thumbs_2x/", "/v1/gallery/")  # kufar: миниатюра → полноразмер
+    url = it.get("url") or ""
+    if url:
+        with contextlib.suppress(Exception):
+            return fetch_ad.first_og_image(url) or ""
+    return ""
+
+
+def fetch_photo(hsh):
+    """Скачать фото объекта в кэш (если ещё нет). Path при успехе, None — фото нет."""
+    if not hsh:
+        return None
+    p = _cached_photo(hsh)
+    if p:
+        return p
+    none_mark = PHOTOS_CACHE_DIR / (hsh + ".none")
+    if none_mark.exists():        # уже знаем, что фото нет — источник повторно не дёргаем
+        return None
+    it = _lookup(hsh)
+    if not it:
+        return None
+    with FETCH_SEM:               # последовательно — иначе источник стопорит пачку
+        p = _cached_photo(hsh)    # другой поток мог успеть, пока ждали семафор
+        if p:
+            return p
+        src = _best_photo_url(it)
+        data = b""
+        if src:
+            req = urllib.request.Request(
+                src, headers={"User-Agent": fetch_ad.UA, "Referer": ""})
+            with contextlib.suppress(Exception):
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    data = r.read()
+        PHOTOS_CACHE_DIR.mkdir(exist_ok=True)
+        if len(data) < 200:       # пусто/битьё — помечаем «нет фото», чтобы не дёргать снова
+            none_mark.touch()
+            return None
+        ext = (".png" if data[:8] == b"\x89PNG\r\n\x1a\n"
+               else ".webp" if data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+               else ".jpg")
+        dest = PHOTOS_CACHE_DIR / (hsh + ext)
+        dest.write_bytes(data)
+        return dest
 
 
 def save_ad(hsh):
@@ -363,6 +437,20 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_image(self, hsh):
+        p = fetch_photo(hsh)
+        if not p:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        data = p.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", _IMG_CT.get(p.suffix, "image/jpeg"))
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _read_json(self):
         n = int(self.headers.get("Content-Length") or 0)
         if not n:
@@ -381,6 +469,10 @@ class Handler(SimpleHTTPRequestHandler):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
             return self._send_json(api_photo((q.get("hash") or [""])[0].strip()))
+        if route == "/img":
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            return self._send_image((q.get("hash") or [""])[0].strip())
         if route == "/api/update/status":
             return self._send_json({k: JOB[k] for k in JOB})
         return super().do_GET()
