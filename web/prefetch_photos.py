@@ -30,6 +30,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="макс. сколько СКАЧАТЬ за прогон (0 = все)")
     ap.add_argument("--sources", default="", help="через запятую: kufar.by,realt.by,…")
     ap.add_argument("--workers", type=int, default=3, help="параллельные загрузки (≤3 безопасно для kufar)")
+    ap.add_argument("--delay", type=float, default=0.0, help="пауза между объектами, с (megapolis банит залп: --workers 1 --delay 4)")
+    ap.add_argument("--reset-none", action="store_true", help="снять .none-метки выбранных --sources перед прогревом (стереть ложные негативы от бана)")
     a = ap.parse_args()
 
     server.load_index()
@@ -40,6 +42,16 @@ def main():
     srcs = {s.strip() for s in a.sources.split(",") if s.strip()}
 
     items = list(server.INDEX.values())
+    if a.reset_none:   # снять негативные метки (ложные .none от бана megapolis) перед прогревом
+        reset = 0
+        for it in items:
+            if srcs and it.get("source") not in srcs:
+                continue
+            f = server.PHOTOS_CACHE_DIR / ((it.get("hash") or "") + ".none")
+            if f.exists():
+                f.unlink()
+                reset += 1
+        print(f"Снято .none-меток: {reset} (будут перепроверены)")
     # что ещё не в кэше и не помечено «без фото» — только это и качаем
     def pending(it):
         h = it.get("hash") or ""
@@ -64,6 +76,8 @@ def main():
     def work(it):
         nonlocal done, miss
         p = server.fetch_photo(it.get("hash"))
+        if a.delay:
+            time.sleep(a.delay)
         with lock:
             if p:
                 done += 1

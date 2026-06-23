@@ -301,6 +301,7 @@ h1 { margin: 0; }
   display: grid; place-items: center; overflow: hidden;
 }
 .lead__media img {
+  position: absolute; inset: 0;   /* height:100% не резолвится от aspect-ratio родителя без этого → было «лентой» */
   width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;
 }
 .lead__ph {

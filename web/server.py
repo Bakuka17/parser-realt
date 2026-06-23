@@ -222,16 +222,21 @@ def _cached_photo(hsh):
     return None
 
 
-def _best_photo_url(it):
-    """Лучший URL фото: полноразмер kufar (gallery), иначе og:image с деталки объекта."""
+def _photo_urls(it):
+    """URL-кандидаты фото по приоритету. Сначала готовый photo (kufar: миниатюра→gallery),
+    затем og:image деталки — он живой даже когда сохранённый photo протух (megapolis чистит
+    свой кэш-ресайз assets/cache/...-600x400 → 404; og отдаёт оригинал assets/images/...)."""
+    out = []
     u = it.get("photo") or ""
     if u:
-        return u.replace("/v1/list_thumbs_2x/", "/v1/gallery/")  # kufar: миниатюра → полноразмер
+        out.append(u.replace("/v1/list_thumbs_2x/", "/v1/gallery/"))
     url = it.get("url") or ""
     if url:
         with contextlib.suppress(Exception):
-            return fetch_ad.first_og_image(url) or ""
-    return ""
+            og = fetch_ad.first_og_image(url)
+            if og and og not in out:
+                out.append(og)
+    return out
 
 
 def fetch_photo(hsh):
@@ -251,14 +256,15 @@ def fetch_photo(hsh):
         p = _cached_photo(hsh)    # другой поток мог успеть, пока ждали семафор
         if p:
             return p
-        src = _best_photo_url(it)
         data = b""
-        if src:
+        for src in _photo_urls(it):   # photo-поле, при промахе — og:image деталки
             req = urllib.request.Request(
                 src, headers={"User-Agent": fetch_ad.UA, "Referer": ""})
             with contextlib.suppress(Exception):
                 with urllib.request.urlopen(req, timeout=15) as r:
                     data = r.read()
+            if len(data) >= 200:
+                break
         PHOTOS_CACHE_DIR.mkdir(exist_ok=True)
         if len(data) < 200:       # пусто/битьё — помечаем «нет фото», чтобы не дёргать снова
             none_mark.touch()
