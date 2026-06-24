@@ -423,6 +423,45 @@ def fetch(url: str, retries: int = 3, timeout: int = 30) -> str:
     return ""
 
 
+def pdf_text(src, force_ocr: bool = False, lang: str = "rus") -> str:
+    """Текст из PDF-извещения (локальный путь ИЛИ URL): берёт текстовый слой,
+    а для СКАНОВ без слоя (или force_ocr=True) — OCR (tesseract -l rus).
+
+    ⚠ ПОМЕТКА — ЗВАТЬ ТАМ, ГДЕ НАДО: только для PDF-СКАНОВ. Целевой кейс —
+    извещения облисполкомов госимущества (Гомель/Гродно/Брест), которые лежат
+    PDF-картинками. Обычные текстовые PDF читаются и так — не тащить OCR в каждый
+    парсер ради галочки (YAGNI). OCR медленный (~7с/стр) и для печатного текста
+    точный, для декоративных шрифтов/логотипов — мусор.
+
+    Движок ГЛОБАЛЬНЫЙ: ~/.claude/ocr_pdf.py — общий инструмент для ВСЕХ наших
+    проектов (правило Дениса), не дублируем логику в репо. Бинарники:
+    brew install tesseract poppler (+ rus.traineddata). См. память ocr-for-realty.
+    """
+    import importlib.util
+    import os
+    import tempfile
+
+    eng = os.path.expanduser("~/.claude/ocr_pdf.py")
+    spec = importlib.util.spec_from_file_location("ocr_pdf", eng)
+    if spec is None or not os.path.exists(eng):
+        raise RuntimeError(f"OCR-движок не найден: {eng} (поставь, см. память ocr-for-realty)")
+    ocr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ocr)
+
+    src = str(src)
+    if src.startswith(("http://", "https://")):   # PDF по ссылке → временный файл → OCR
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            req = urllib.request.Request(src, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                tmp.write(r.read())
+            path = tmp.name
+        try:
+            return ocr.pdf_to_text(path, lang=lang, force_ocr=force_ocr)
+        finally:
+            os.unlink(path)
+    return ocr.pdf_to_text(src, lang=lang, force_ocr=force_ocr)
+
+
 def clean(s: str) -> str:
     s = re.sub(r"<[^>]+>", " ", s or "")
     import html as _h
