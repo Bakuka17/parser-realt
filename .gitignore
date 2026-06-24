@@ -30,3 +30,6 @@ web/photos_cache/
 # разведочные HTML-дампы (probe_1bv.py)
 probe_1bv/
 present.html
+
+# Локальные разрешения Claude Code (машинно-специфичны, не код)
+.claude/settings.local.json
