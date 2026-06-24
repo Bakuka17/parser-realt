@@ -27,16 +27,6 @@ BANK_PHONE = "+375 17 239-02-39"   # горячая линия Белинвес�
 CHECKPOINT_EVERY = 20
 
 
-def get_text(html: str) -> str:
-    if not html:
-        return ""
-    t = re.sub(r"<script.*?</script>", "", html, flags=re.S | re.I)
-    t = re.sub(r"<style.*?</style>", "", t, flags=re.S | re.I)
-    t = re.sub(r"<[^>]+>", " ", t)
-    import html as _h
-    return re.sub(r"\s+", " ", _h.unescape(t)).strip()
-
-
 def _title_from_slug(slug: str) -> str:
     """proizvodstvennoe-zdanie-mozyrskij-r-n → 'Proizvodstvennoe zdanie mozyrskij r n' —
     но лучше брать русский заголовок из блока; слаг лишь фолбэк."""
@@ -57,7 +47,7 @@ def parse_listing(html: str) -> list[dict]:
         title = A.clean(mt.group(1)) if mt and A.clean(mt.group(1)) else _title_from_slug(slug)
         mprice = re.search(r'(?:min\s*)?(\d[\d\s\xa0]{3,}(?:[.,]\d{2})?)\s*руб', blk, re.I)
         # район/город: короткий фрагмент с «р-н»/«г.»/«обл»
-        bt = get_text(blk)
+        bt = A.get_text(blk)
         mreg = re.search(r'([А-ЯЁ][а-яё]+(?:ский|ская|ний)?\s*(?:р-н|район|обл\.?|область)'
                          r'|г\.\s*[А-ЯЁ][а-яё-]+)', bt)
         mdate = re.search(r'data-page-date="(\d{4})(\d{2})(\d{2})', blk)
@@ -100,7 +90,7 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
         # деталь: телефон объекта + площадь + фото (бережно — страница шумная)
         dhtml = A.fetch(card["link"])
         if dhtml:
-            dtext = get_text(dhtml)
+            dtext = A.get_text(dhtml)
             ar = A.extract_area(dtext)
             it["Площадь, м²"] = str(ar) if ar else ""
             ph = A.extract_phones(dhtml)

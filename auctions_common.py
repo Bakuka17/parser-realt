@@ -469,6 +469,24 @@ def clean(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+def get_text(html: str, multiline: bool = False) -> str:
+    """HTML → текст: срезает <script>/<style>, убирает теги, схлопывает пробелы.
+    multiline=False (деф.): теги→пробел, unescape entity, всё в одну строку.
+    multiline=True: теги→\\n, переносы строк сохранены (для парсинга по строкам), без unescape.
+    Сведён сюда из 8 копий парсеров (рефактор 24.06) — единый источник."""
+    if not html:
+        return ""
+    import html as _h
+    t = re.sub(r"<script.*?</script>", "", html, flags=re.S | re.I)
+    t = re.sub(r"<style.*?</style>", "", t, flags=re.S | re.I)
+    if multiline:
+        t = re.sub(r"<[^>]+>", "\n", t)
+        t = re.sub(r"[ \t]+", " ", t)
+        return re.sub(r"\n\s*\n", "\n", t).strip()
+    t = re.sub(r"<[^>]+>", " ", t)
+    return re.sub(r"\s+", " ", _h.unescape(t)).strip()
+
+
 def blank_item(source: str) -> dict:
     it = {c: "" for c in AUCTION_COLUMNS}
     it["Источник"] = source

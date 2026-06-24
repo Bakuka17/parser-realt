@@ -19,16 +19,6 @@ LIST = BASE + "/auctions/filter/section-is-nedvizhimost/apply/"
 CHECKPOINT_EVERY = 20
 
 
-def get_text(html: str) -> str:
-    if not html:
-        return ""
-    t = re.sub(r"<script.*?</script>", "", html, flags=re.S | re.I)
-    t = re.sub(r"<style.*?</style>", "", t, flags=re.S | re.I)
-    t = re.sub(r"<[^>]+>", " ", t)
-    import html as _h
-    return re.sub(r"\s+", " ", _h.unescape(t)).strip()
-
-
 def parse_cards(html: str) -> list[dict]:
     """Карточки sales__item → поля из листинга. Заголовок — первый осмысленный текст
     карточки (не служебная метка)."""
@@ -41,7 +31,7 @@ def parse_cards(html: str) -> list[dict]:
         ml = re.search(r'href="(https://www\.cpo\.by/auctions/(?!filter)[^"/]+/)"', seg)
         if not ml:
             continue
-        t = get_text(seg)   # «Недвижимость ЗАГОЛОВОК Дата аукциона: ДД.ММ.ГГГГ ГОРОД АДРЕС Начальная цена … N BYN …»
+        t = A.get_text(seg)   # «Недвижимость ЗАГОЛОВОК Дата аукциона: ДД.ММ.ГГГГ ГОРОД АДРЕС Начальная цена … N BYN …»
         mt = re.search(r'Недвижимост\w*\s+(.+?)\s+Дата\s+аукциона', t)
         title = re.sub(r'^(?:Цена снижена\s*)+', '', A.clean(mt.group(1))).strip() if mt else ""
         mdate = re.search(r'Дата\s+аукциона:?\s*(\d{2}\.\d{2}\.\d{4})', t)
@@ -90,7 +80,7 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
             it["Описание"] = card["title"]
             dhtml = A.fetch(card["link"])
             if dhtml:
-                dtext = get_text(dhtml)
+                dtext = A.get_text(dhtml)
                 ar = A.extract_area(dtext)
                 it["Площадь, м²"] = str(ar) if ar else ""
                 it["Телефон"] = A.extract_phones(dhtml)

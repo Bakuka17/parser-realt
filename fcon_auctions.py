@@ -34,17 +34,6 @@ _PRICE_RE = re.compile(r"начальн\w*\s*цен\w*\s*:?\s*([\d\s.,]+?)\s*(?:
 _DEP_RE = re.compile(r"задатк\w*\s*:?\s*([\d\s.,]+?)\s*(?:BYN|бел|руб|Br)", re.I)
 
 
-def get_text(html: str) -> str:
-    if not html:
-        return ""
-    t = re.sub(r"<script.*?</script>", "", html, flags=re.S | re.I)
-    t = re.sub(r"<style.*?</style>", "", t, flags=re.S | re.I)
-    t = re.sub(r"<[^>]+>", " ", t)
-    import html as _h
-    t = _h.unescape(t)
-    return re.sub(r"\s+", " ", t).strip()
-
-
 def _city(addr: str) -> str:
     """Населённый пункт из адреса: 'г. Житковичи, ул...' → 'Житковичи'."""
     m = re.search(r"(?:г\.|аг\.|гп\.|д\.|г\.п\.)\s*([А-ЯЁ][а-яё-]+)", addr or "")
@@ -99,7 +88,7 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
         dhtml = A.fetch(card["link"])
         if not dhtml:
             continue
-        text = get_text(dhtml)
+        text = A.get_text(dhtml)
         it = A.blank_item("fcon.by")
         it["Ссылка"] = nu
         it["Тип торгов"] = "Электронные торги"

@@ -2,13 +2,6 @@ import re, time, random
 from pathlib import Path
 import auctions_common as A
 
-def get_text(html):
-    if not html: return ""
-    t=re.sub(r'<script.*?</script>','',html,flags=re.S|re.I)
-    t=re.sub(r'<style.*?</style>','',t,flags=re.S|re.I)
-    t=re.sub(r'<[^>]+>','\n',t); t=re.sub(r'[ \t]+',' ',t); t=re.sub(r'\n\s*\n','\n',t)
-    return t.strip()
-
 def parse_gki():
     items=[]; seen=set()
     sections=[("https://gki.gov.by/ru/auction-auinf_live/","Аукцион"),
@@ -25,7 +18,7 @@ def parse_gki():
             seen.add(nu)
             d=A.fetch(full)
             if not d: continue
-            text=get_text(d)
+            text=A.get_text(d, multiline=True)
             it=A.blank_item("gki.gov.by"); it["Ссылка"]=nu; it["Тип торгов"]=atype
             m=re.search(r'<title>(.*?)</title>',d,re.I|re.S)
             if m: it["Объект"]=A.clean(re.sub(r'<[^>]+>','',m.group(1)).split('|')[0])

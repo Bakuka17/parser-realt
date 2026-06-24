@@ -18,16 +18,6 @@ from pathlib import Path
 import auctions_common as A
 
 
-def get_text(html):
-    if not html: return ""
-    text = re.sub(r'<script.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<style.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<[^>]+>', '\n', text)
-    text = re.sub(r'[ \t]+', ' ', text)
-    text = re.sub(r'\n\s*\n', '\n', text)
-    return text.strip()
-
-
 CHECKPOINT_EVERY = 20  # сохранять прогресс каждые N лотов (защита от обрыва)
 
 
@@ -57,7 +47,7 @@ def collect(skip_urls: set, on_checkpoint=None) -> list[dict]:
             seen.add(nu); new_on_page += 1
             dhtml = A.fetch(full)
             if not dhtml: continue
-            text = get_text(dhtml)
+            text = A.get_text(dhtml, multiline=True)
             it = A.blank_item("ipmtorgi.by")
             it["Ссылка"] = nu
             it["Тип торгов"] = "Аукцион"
