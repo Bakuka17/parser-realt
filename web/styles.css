@@ -118,6 +118,11 @@ body {
 
 h1 { margin: 0; }
 
+/* перенос текста: balance ровняет короткие заголовки, pretty убирает слова-сироты
+   (make-interfaces-feel-better) */
+h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
+.lead__addr, .appbar__sub, .empty__hint, .modal__hint, .ana-empty, .ana-note { text-wrap: pretty; }
+
 /* ---------- App bar ---------- */
 .appbar {
   display: flex;
@@ -385,7 +390,7 @@ h1 { margin: 0; }
   transition: background .15s, border-color .15s, color .15s, transform .1s;
 }
 .btn svg { width: 15px; height: 15px; flex: none; }
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: scale(0.96); }  /* тактильный отклик (make-interfaces-feel-better) */
 
 .btn--call {
   flex: 1 1 auto; background: var(--call); color: white;
