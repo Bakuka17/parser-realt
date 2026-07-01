@@ -81,6 +81,19 @@ def check_realt():
     return realt_status(*_get("https://realt.by/sale/offices/"))
 
 
+def check_gohome():
+    _, b = _get("https://gohome.by/commerce/sale")
+    n = b.count('class="w-object-list-item')
+    return (n > 0), (f"{n} карточек на странице" if n else "0 карточек — пусто/сменилась вёрстка")
+
+
+def check_byrealty():
+    import re
+    _, b = _get("https://byrealty.by/kommercheskaja-nedvizhimost/arenda")
+    n = len(set(re.findall(r"/realty-(\d+)", b)))
+    return (n > 0), (f"{n} объявлений в листинге" if n else "0 — пусто/сменилась вёрстка")
+
+
 def run():
     cc, country, ip = exit_country()
     geo_ok = cc == "BY"
@@ -88,8 +101,9 @@ def run():
           + ("" if geo_ok else "  ⚠ не Беларусь"))
     print("  " + "─" * 54)
     alive = 0
-    for name, fn in (("megapolis", check_megapolis), ("kufar", check_kufar),
-                     ("realt", check_realt)):
+    checks = (("megapolis", check_megapolis), ("kufar", check_kufar),
+              ("realt", check_realt), ("gohome", check_gohome), ("byrealty", check_byrealty))
+    for name, fn in checks:
         t = time.time()
         try:
             ok, note = fn()
@@ -99,7 +113,7 @@ def run():
         print(f"  {'✅' if ok else '⛔'} {name:11} {note}   {time.time()-t:.1f}s")
     if not geo_ok:
         print("  ⚠ kufar-телефоны скрыты: нужен белорусский IP (Psiphon OFF) — kufar_phones.py")
-    print(f"\n  Итог: {alive}/3 источника отвечают.\n")
+    print(f"\n  Итог: {alive}/{len(checks)} источников отвечают.\n")
     return alive
 
 

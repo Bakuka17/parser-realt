@@ -27,8 +27,10 @@ web/photos_cache/
 *.bak
 .kufar_profile/
 .kufar_nophone.json
-# разведочные HTML-дампы (probe_1bv.py)
+# разведочные HTML-дампы (probe_1bv.py / geo_probe.py)
 probe_1bv/
+geo_probe_out/
+geo_probe_report.txt
 present.html
 
 # Локальные разрешения Claude Code (машинно-специфичны, не код)

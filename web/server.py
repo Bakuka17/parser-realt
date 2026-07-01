@@ -77,37 +77,46 @@ def _stream(cmd):
     return _proc.returncode
 
 
-def _run_update(target="realty"):
+def _update_steps(target, py):
+    """Список (заголовок, команда) для target. 'all' = полный прогон всех источников.
+    Гео-источники (domovita/edc) и телефоны kufar/belretail сами пропустятся, если IP
+    не белорусский — под VPN просто соберут 0, остальное не ломают."""
+    steps = []
+    if target in ("all", "realty"):
+        steps.append(("Сбор объявлений (realt/megapolis/kufar/gohome/byrealty)",
+                      [py, "-u", "collect_realty.py"]))
+        # --chrome-cookies: kufar спрятал телефон за логин, берём сессию из Chrome
+        steps.append((f"Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен бел. IP)",
+                      [py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"]))
+    if target in ("all", "geo"):
+        steps.append(("Гео-источники domovita + edc (нужен бел. IP — VPN выключен)",
+                      [py, "-u", "collect_geo.py"]))
+    if target in ("all", "auctions"):
+        steps.append(("Сбор аукционов (10 площадок)", [py, "-u", "collect_auctions.py"]))
+    if target in ("all", "banks"):
+        steps.append(("Недвижимость банков", [py, "-u", "collect_banks.py"]))
+        steps.append(("Телефоны компаний belretail (нужен бел. IP)", [py, "-u", "belretail_phones.py"]))
+    return steps
+
+
+def _run_update(target="all"):
     global _proc
     py = sys.executable
     warn = ""
     if (ROOT / "~$commercial_realty.xlsx").exists():
         warn = ("⚠ commercial_realty.xlsx сейчас ОТКРЫТ в Excel — запись может не пройти.\n"
                 "  Закройте файл в Excel и запустите обновление снова.\n\n")
-    head = ("[1/2] Сбор аукционов (collect_auctions.py — 10 площадок)…\n" if target == "auctions"
-            else "[1/3] Сбор недвижимости банков (collect_banks.py)…\n" if target == "banks"
-            else "[1/3] Сбор объявлений (collect_realty.py, инкрементально)…\n")
+    steps = _update_steps(target, py)
+    n = len(steps)
     JOB.update(running=True, started=datetime.now().strftime("%H:%M:%S"),
-               finished="", rc=None, log=warn + head)
+               finished="", rc=None, log=warn + f"Обновление: {n} шагов сбора + ре-экспорт.\n")
+    rc = 0
     try:
-        if target == "auctions":
-            rc = _stream([py, "-u", "collect_auctions.py"])
-            JOB["log"] += (f"\n[1/2] Сбор аукционов завершён (код {rc}).\n"
-                           "[2/2] Ре-экспорт данных для дашборда…\n")
-        elif target == "banks":
-            rc = _stream([py, "-u", "collect_banks.py"])
-            JOB["log"] += (f"\n[1/3] Банки собраны (код {rc}).\n"
-                           "[2/3] Сбор телефонов компаний belretail (нужен бел. IP)…\n")
-            _stream([py, "-u", "belretail_phones.py"])
-            JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
-        else:
-            rc = _stream([py, "-u", "collect_realty.py"])
-            JOB["log"] += (f"\n[1/3] Сбор завершён (код {rc}).\n"
-                           f"[2/3] Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен "
-                           f"белорусский IP — Psiphon должен быть ВЫКЛЮЧЕН)…\n")
-            # --chrome-cookies: kufar спрятал телефон за логин, берём сессию из Chrome
-            _stream([py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"])
-            JOB["log"] += "\n[3/3] Ре-экспорт данных для дашборда…\n"
+        for i, (label, cmd) in enumerate(steps, 1):
+            JOB["log"] += f"\n[{i}/{n}] {label}…\n"
+            step_rc = _stream(cmd)
+            rc = step_rc or rc  # запомним последний ненулевой код (для статуса)
+        JOB["log"] += "\n[ре-экспорт] Обновление данных дашборда…\n"
         ex = subprocess.run([py, "web/export_data.py"], cwd=str(ROOT),
                             capture_output=True, text=True)
         JOB["log"] = (JOB["log"] + ex.stdout + ex.stderr)[-8000:]
@@ -493,9 +502,9 @@ class Handler(SimpleHTTPRequestHandler):
         if route == "/api/update":
             if JOB["running"]:
                 return self._send_json({"ok": False, "error": "уже выполняется"})
-            target = (self._read_json().get("target") or "realty").strip()
-            if target not in ("realty", "auctions", "banks"):
-                target = "realty"
+            target = (self._read_json().get("target") or "all").strip()
+            if target not in ("all", "realty", "geo", "auctions", "banks"):
+                target = "all"
             threading.Thread(target=_run_update, args=(target,), daemon=True).start()
             time.sleep(0.2)
             return self._send_json({"ok": True})

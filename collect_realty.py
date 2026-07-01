@@ -28,10 +28,12 @@ from types import SimpleNamespace
 import realty_parser_v8 as R
 import megapolis_parser as M
 import kufar_parser as K
+import gohome_parser as G
+import byrealty_parser as BY
 
 HERE = Path(__file__).parent
 DEFAULT_OUT = HERE / "commercial_realty.xlsx"
-ALL_SOURCES = ["realt", "megapolis", "kufar"]
+ALL_SOURCES = ["realt", "megapolis", "kufar", "gohome", "byrealty"]
 # Цель облачного бэкапа: Яндекс.Диск (предпочтение пользователя).
 # Папка ~/Yandex.Disk.localized/ — это и есть Яндекс.Диск (Finder показывает её как «Яндекс.Диск»).
 BACKUP_DIR = Path.home() / "Yandex.Disk.localized" / "realty_backup"
@@ -145,10 +147,32 @@ def collect_kufar(prev_urls, last_run, cfg) -> list[dict]:
     return new
 
 
+def collect_gohome(prev_urls, last_run, cfg) -> list[dict]:
+    scfg = SimpleNamespace(max_pages=cfg.max_pages, full=cfg.full, coords=False)
+    new: list[dict] = []
+    pu = set() if cfg.full else prev_urls
+    for deal_path, deal in G.CATEGORIES:
+        items = G.scrape_category(deal_path, deal, pu, None, scfg)
+        new.extend(it for it in items if R.normalize_url(it["Ссылка"]) not in prev_urls)
+    return new
+
+
+def collect_byrealty(prev_urls, last_run, cfg) -> list[dict]:
+    scfg = SimpleNamespace(max_pages=1, full=cfg.full)
+    new: list[dict] = []
+    pu = set() if cfg.full else prev_urls
+    for path, deal in BY.CATEGORIES:
+        items = BY.scrape_category(path, deal, pu, None, scfg)
+        new.extend(it for it in items if R.normalize_url(it["Ссылка"]) not in prev_urls)
+    return new
+
+
 COLLECTORS = {
     "realt": collect_realt,
     "megapolis": collect_megapolis,
     "kufar": collect_kufar,
+    "gohome": collect_gohome,
+    "byrealty": collect_byrealty,
 }
 
 
