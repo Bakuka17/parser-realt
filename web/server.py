@@ -434,7 +434,11 @@ def reveal(hsh):
 
 # ---- гео-анализ локации (OSM Overpass/Nominatim, бесплатно, без ключей) ----
 OVERPASS_UA = "realty-tool/1.0 (commercial-realty enrichment)"  # браузерный UA Overpass режет (406)
-OVERPASS = "https://overpass-api.de/api/interpreter"
+# зеркала Overpass нестабильны ПООЧЕРЁДНО (проверено: то 504 у главного, то таймаут kumi) →
+# попытки чередуют зеркала
+OVERPASS_MIRRORS = ["https://overpass-api.de/api/interpreter",
+                    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+                    "https://overpass.kumi.systems/api/interpreter"]
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 GEO_CACHE_FILE = WEB_DIR / "geo_cache.json"     # вечный кэш: окружение меняется медленно
 _cache_lock = threading.Lock()
@@ -455,10 +459,16 @@ def _cache_put(cache, path, key, val):
         path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
 
+# Nominatim спотыкается о префиксы «г./ул./просп.» и о хвост «, Беларусь» (проверено:
+# с ними None, без них находит; страна — через параметр countrycodes=by, не текстом)
+_ADDR_PREFIX = re.compile(r"\b(г|город|ул|улица|просп|проспект|пр-т|пер|переулок|б-р|бульвар"
+                          r"|наб|набережная|ш|шоссе|д|дом|аг|р-н|район|обл|область)\.?(?=\s|,|$)", re.I)
+
+
 def _geocode(addr):
     """Адрес → [lat, lng] через Nominatim (объекты без координат — в основном realt)."""
-    q = addr if "Беларус" in addr else addr + ", Беларусь"
-    params = urllib.parse.urlencode({"q": q, "format": "json", "limit": "1"})
+    q = re.sub(r"\s+", " ", _ADDR_PREFIX.sub("", addr)).replace(" ,", ",").strip(" ,")
+    params = urllib.parse.urlencode({"q": q, "format": "json", "limit": "1", "countrycodes": "by"})
     req = urllib.request.Request(NOMINATIM + "?" + params, headers={"User-Agent": OVERPASS_UA})
     with contextlib.suppress(Exception):
         with urllib.request.urlopen(req, timeout=20) as r:
@@ -504,10 +514,10 @@ def api_geo(hsh):
          f"node(around:800,{lat},{lng})[station=subway];"
          f");out body;")
     els = None
-    for attempt in (1, 2):    # Overpass бывает перегружен (429/504) — один повтор
+    for mirror in OVERPASS_MIRRORS:
         try:
             data = urllib.parse.urlencode({"data": q}).encode()
-            req = urllib.request.Request(OVERPASS, data=data, headers={"User-Agent": OVERPASS_UA})
+            req = urllib.request.Request(mirror, data=data, headers={"User-Agent": OVERPASS_UA})
             with urllib.request.urlopen(req, timeout=40) as r:
                 els = json.loads(r.read().decode("utf-8", "replace")).get("elements", [])
             break
@@ -515,7 +525,6 @@ def api_geo(hsh):
             err = f"OSM недоступен (HTTP {e.code})"
         except Exception as e:
             err = f"OSM недоступен ({type(e).__name__})"
-        time.sleep(2)
     if els is None:           # сбой сети НЕ кэшируем — следующий клик попробует снова
         return {"ok": False, "error": err}
     c = {"poi": 0, "shops": 0, "food": 0, "pharmacies": 0, "offices": 0, "schools": 0}
@@ -599,7 +608,7 @@ def api_verdict(hsh, stats):
                        "messages": [{"role": "system", "content": _VERDICT_SYS},
                                     {"role": "user", "content": prompt}]}).encode()
     text = None
-    for attempt in (1, 2):    # под VPN первое соединение бывает обрывается — один повтор
+    for _ in (1, 2):          # под VPN первое соединение бывает обрывается — один повтор
         req = urllib.request.Request(ZAI_URL, data=body, headers={
             "Content-Type": "application/json", "Authorization": f"Bearer {key}"})
         try:
