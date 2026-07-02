@@ -42,14 +42,17 @@ def main():
     srcs = {s.strip() for s in a.sources.split(",") if s.strip()}
 
     items = list(server.INDEX.values())
-    # чистка сирот: объект ушёл из базы → его фото больше никто не запросит
+    # чистка сирот: объект ушёл из базы → его фото больше никто не запросит.
+    # Карантин 30 дней: «мигнувшее» (временно пропавшее) объявление фото не теряет
     live = {it.get("hash") or "" for it in items}
+    cutoff = time.time() - 30 * 86400
     if len(live) > 1000:  # гвард: не сносить кэш, если data.js вдруг пустой/битый
-        orphans = [f for f in server.PHOTOS_CACHE_DIR.iterdir() if f.stem not in live]
+        orphans = [f for f in server.PHOTOS_CACHE_DIR.iterdir()
+                   if f.stem not in live and f.stat().st_mtime < cutoff]
         for f in orphans:
             f.unlink()
         if orphans:
-            print(f"Удалено осиротевших фото: {len(orphans)} (объектов уже нет в базе)")
+            print(f"Удалено осиротевших фото: {len(orphans)} (объектов нет в базе >30 дней)")
     if a.reset_none:   # снять негативные метки (ложные .none от бана megapolis) перед прогревом
         reset = 0
         for it in items:
