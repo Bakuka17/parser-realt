@@ -42,6 +42,14 @@ def main():
     srcs = {s.strip() for s in a.sources.split(",") if s.strip()}
 
     items = list(server.INDEX.values())
+    # чистка сирот: объект ушёл из базы → его фото больше никто не запросит
+    live = {it.get("hash") or "" for it in items}
+    if len(live) > 1000:  # гвард: не сносить кэш, если data.js вдруг пустой/битый
+        orphans = [f for f in server.PHOTOS_CACHE_DIR.iterdir() if f.stem not in live]
+        for f in orphans:
+            f.unlink()
+        if orphans:
+            print(f"Удалено осиротевших фото: {len(orphans)} (объектов уже нет в базе)")
     if a.reset_none:   # снять негативные метки (ложные .none от бана megapolis) перед прогревом
         reset = 0
         for it in items:
