@@ -452,12 +452,23 @@
     if (!x) return;
     const a = analyze(x);
     anaCur = x.hash;
+    // готовый вывод для AI: модели ошибаются, сравнивая числа сами (проверено на GLM и Groq)
+    const posTxt = (self, med) => {
+      if (!self || !med) return null;
+      const p = Math.round((self - med) / med * 100);
+      return p > 3 ? `объект на ${p}% дороже медианы` : p < -3 ? `объект на ${-p}% дешевле медианы`
+        : "объект на уровне рынка";
+    };
     anaStats = {                                     // рыночная сводка — уйдёт в AI-вердикт
       "аналогов": a.same.length,
+      "позиция_к_медиане": posTxt(a.ppmSelf, a.medCity),
       "медиана_город_за_м2_usd": a.medCity && Math.round(a.medCity),
       "вилка_25_75_за_м2_usd": a.p25 != null ? [Math.round(a.p25), Math.round(a.p75)] : null,
       "объект_за_м2_usd": a.ppmSelf && Math.round(a.ppmSelf),
       "cap_rate_проц": a.capRate && +a.capRate.toFixed(1),
+      "cap_rate_оценка": a.capRate == null ? null
+        : a.capRate >= 10 ? "выше нормы Минска 8–10%" : a.capRate >= 8 ? "в норме Минска 8–10%"
+        : "ниже нормы Минска 8–10%",
       "окупаемость_лет": a.payback && +a.payback.toFixed(1),
       "ожид_ставка_аренды_м2_мес_usd": a.rate && Math.round(a.rate),
     };
@@ -518,7 +529,7 @@
       const box = $("#aiBox");
       if (!box) return;
       box.innerHTML = v.ok
-        ? `<div class="ana-box__t">AI-вердикт (GLM, бесплатно)</div><div class="ana-verdict">${esc(v.text)}</div>`
+        ? `<div class="ana-box__t">AI-вердикт (${esc(v.model || "AI")}, бесплатно)</div><div class="ana-verdict">${esc(v.text)}</div>`
         : `<div class="ana-note">AI-вердикт: ${esc(v.error || "не получился")}</div>`;
     }).catch(() => {
       btn.disabled = false;
@@ -542,7 +553,7 @@
       <div class="ana-note">оцениваю окружение…</div></div>`;
     const aiBox = `<div class="ana-box" id="aiBox">
       <button type="button" class="btn btn--ghost btn--mini" id="aiBtn">${ICON.chart}<span>AI-вердикт</span></button>
-      <div class="ana-note">короткая сводка от бесплатной нейросети GLM (~10 с)</div></div>`;
+      <div class="ana-note">короткая сводка от бесплатной нейросети (Groq, ~5 с)</div></div>`;
     if (!x.area || !a.same.length) {
       return head + `<p class="ana-empty">Недостаточно похожих объектов для анализа${x.area ? "" : " (у объекта нет площади)"}.
         Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>` + geoBox + aiBox;

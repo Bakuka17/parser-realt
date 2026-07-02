@@ -561,7 +561,11 @@ def api_geo(hsh):
     return res
 
 
-# ---- AI-вердикт по объекту (бесплатный GLM/z.ai; ключ ~/.zai_key) ----
+# ---- AI-вердикт по объекту: Groq gpt-oss-120b (мощнее) → fallback GLM/z.ai. Оба бесплатны ----
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "openai/gpt-oss-120b"
+GROQ_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+           "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")  # Cloudflare банит python-UA (1010)
 ZAI_URL = "https://api.z.ai/api/paas/v4/chat/completions"
 ZAI_MODEL = "glm-4.5-flash"
 VERDICT_CACHE_FILE = WEB_DIR / "verdict_cache.json"
@@ -571,12 +575,28 @@ _VERDICT_SYS = ("Ты — аналитик коммерческой недвиж
                 "без воды и без markdown-разметки.")
 
 
-def _zai_key():
-    k = os.environ.get("ZAI_API_KEY") or ""
-    f = Path.home() / ".zai_key"
+def _key_from(env, fname):
+    k = os.environ.get(env) or ""
+    f = Path.home() / fname
     if not k and f.exists():
         k = f.read_text(encoding="utf-8").strip()
     return k
+
+
+def _ai_providers():
+    """Каскад бесплатных нейронок по убыванию силы; без ключа провайдер пропускается."""
+    out = []
+    gk = _key_from("GROQ_API_KEY", ".groq_key")
+    if gk:
+        out.append(("Groq gpt-oss-120b", GROQ_URL,
+                    {"Authorization": f"Bearer {gk}", "User-Agent": GROQ_UA},
+                    {"model": GROQ_MODEL, "reasoning_effort": "low"}))
+    zk = _key_from("ZAI_API_KEY", ".zai_key")
+    if zk:
+        out.append(("GLM-4.5-flash", ZAI_URL, {"Authorization": f"Bearer {zk}"},
+                    {"model": ZAI_MODEL,
+                     "thinking": {"type": "disabled"}}))  # иначе размышления съедают max_tokens
+    return out
 
 
 def api_verdict(hsh, stats):
@@ -586,44 +606,54 @@ def api_verdict(hsh, stats):
     ck = f"{hsh}|{it.get('usd') or it.get('price') or ''}"  # смена цены → вердикт пересчитается
     if ck in VERDICT_CACHE:
         return VERDICT_CACHE[ck]
-    key = _zai_key()
-    if not key:
-        return {"ok": False, "error": "нет ключа z.ai (~/.zai_key)"}
+    providers = _ai_providers()
+    if not providers:
+        return {"ok": False, "error": "нет ключей нейронок (~/.groq_key / ~/.zai_key)"}
     geo = GEO_CACHE.get(hsh) or {}
     facts = {"тип": it.get("type"), "сделка": "аренда" if it.get("deal") == "rent" else "продажа",
              "город": it.get("city"), "адрес": it.get("addr"), "площадь_м2": it.get("area"),
              "цена": it.get("usd") or it.get("price"), "этаж": it.get("floor"),
              "рынок": stats or "нет данных",
-             "локация_OSM": ({k: geo.get(k) for k in
-                              ("activity", "poi", "shops", "food", "pharmacies", "offices",
-                               "schools", "transit_m")} if geo.get("ok") else "нет данных")}
+             "локация_OSM": ({"активность_окружения": geo.get("activity"),
+                              "точек_бизнеса_в_300м": geo.get("poi"),
+                              "магазинов": geo.get("shops"), "общепита": geo.get("food"),
+                              "аптек": geo.get("pharmacies"), "офисов": geo.get("offices"),
+                              "школ_садов": geo.get("schools"),
+                              "метров_до_остановки": geo.get("transit_m")}
+                             if geo.get("ok") else "нет данных")}
     prompt = (f"Объект и данные (JSON):\n{json.dumps(facts, ensure_ascii=False)}\n\n"
               "Дай вердикт ровно тремя короткими абзацами:\n"
               "1. Цена против рынка (по данным «рынок»).\n"
               "2. Кому объект подойдёт (арендаторы/использование) с учётом «локация_OSM».\n"
               "3. Что упомянуть в разговоре с собственником при обзвоне.\n"
-              "Не выдумывай факты, которых нет в данных; чисел не изобретай.")
-    body = json.dumps({"model": ZAI_MODEL, "temperature": 0.3, "max_tokens": 700,
-                       "thinking": {"type": "disabled"},  # иначе размышления съедают max_tokens → пустой content
-                       "messages": [{"role": "system", "content": _VERDICT_SYS},
-                                    {"role": "user", "content": prompt}]}).encode()
-    text = None
-    for _ in (1, 2):          # под VPN первое соединение бывает обрывается — один повтор
-        req = urllib.request.Request(ZAI_URL, data=body, headers={
-            "Content-Type": "application/json", "Authorization": f"Bearer {key}"})
-        try:
-            with urllib.request.urlopen(req, timeout=90) as r:
-                d = json.loads(r.read().decode("utf-8", "replace"))
-            text = (d["choices"][0]["message"]["content"] or "").strip()
+              "Не выдумывай факты, которых нет в данных; чисел не изобретай.\n"
+              "Поля рынок.позиция_к_медиане и рынок.cap_rate_оценка — ГОТОВЫЕ выводы, бери их "
+              "дословно; сам числа НЕ сравнивай и хорошесть доходности НЕ оценивай.")
+    text, used, err = None, None, "нейронки недоступны"
+    for name, url, hdrs, extra in providers:
+        for _ in (1, 2):      # под VPN первое соединение бывает обрывается — один повтор
+            body = json.dumps({**extra, "temperature": 0.3, "max_tokens": 800,
+                               "messages": [{"role": "system", "content": _VERDICT_SYS},
+                                            {"role": "user", "content": prompt}]}).encode()
+            req = urllib.request.Request(url, data=body,
+                                         headers={"Content-Type": "application/json", **hdrs})
+            try:
+                with urllib.request.urlopen(req, timeout=90) as r:
+                    d = json.loads(r.read().decode("utf-8", "replace"))
+                text = (d["choices"][0]["message"]["content"] or "").strip()
+            except Exception as e:  # сбой не кэшируем
+                err = f"{name}: {type(e).__name__}"
+                time.sleep(1)
+                continue
+            if text:
+                used = name
+                break
+            err = f"{name}: пустой ответ"
+        if text:
             break
-        except Exception as e:  # сбой не кэшируем
-            err = f"GLM недоступен ({type(e).__name__})"
-        time.sleep(2)
-    if text is None:
-        return {"ok": False, "error": err}
     if not text:
-        return {"ok": False, "error": "GLM вернул пустой ответ"}
-    res = {"ok": True, "text": text}
+        return {"ok": False, "error": err}
+    res = {"ok": True, "text": text, "model": used}
     _cache_put(VERDICT_CACHE, VERDICT_CACHE_FILE, ck, res)
     return res
 
