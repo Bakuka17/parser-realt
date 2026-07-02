@@ -178,6 +178,12 @@
     if (x.price) return `<span class="noprice">${esc(x.price)}</span>`;
     return `<span class="noprice">Цена не указана</span>`;
   }
+  // бейдж изменения цены (из price_history.json через export_data)
+  function pchHtml(x) {
+    if (!x.pch) return "";
+    const down = x.pch.dir === "down";
+    return `<span class="pch ${down ? "pch--down" : "pch--up"}" title="Было: ${esc(x.pch.old)} · изменение ${esc(x.pch.date)}">${down ? "↓ цена снижена" : "↑ цена выросла"}</span>`;
+  }
   function metaHtml(x) {
     const bits = [];
     if (x.area) bits.push(`${nf.format(x.area)} м²`);
@@ -323,7 +329,7 @@
       <div class="lead__body">
         <div class="lead__top"><span class="lead__kind">${esc(x.type || "—")}</span>
           ${x.source ? `<span class="lead__src">${esc(x.source)}</span>` : ""}</div>
-        <div class="lead__price">${priceHtml(x)}</div>
+        <div class="lead__price">${priceHtml(x)}${pchHtml(x)}</div>
         <div class="lead__meta">${metaHtml(x)}</div>
         <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}</div>
       </div>
@@ -439,13 +445,85 @@
              medNear: median(near.map(ppmOf)), rate, gross, noi, capRate, payback, rentN };
   }
 
+  let anaCur = null, anaStats = null;   // текущий объект модалки — гео/вердикт приходят асинхронно
+
   function openAnalysis(btn) {
     const x = byHash.get(btn.dataset.hash);
     if (!x) return;
+    const a = analyze(x);
+    anaCur = x.hash;
+    anaStats = {                                     // рыночная сводка — уйдёт в AI-вердикт
+      "аналогов": a.same.length,
+      "медиана_город_за_м2_usd": a.medCity && Math.round(a.medCity),
+      "вилка_25_75_за_м2_usd": a.p25 != null ? [Math.round(a.p25), Math.round(a.p75)] : null,
+      "объект_за_м2_usd": a.ppmSelf && Math.round(a.ppmSelf),
+      "cap_rate_проц": a.capRate && +a.capRate.toFixed(1),
+      "окупаемость_лет": a.payback && +a.payback.toFixed(1),
+      "ожид_ставка_аренды_м2_мес_usd": a.rate && Math.round(a.rate),
+    };
     $("#anaTitle").textContent =
       `Анализ: ${x.type || "объект"}${x.area ? ", " + nf.format(x.area) + " м²" : ""}`;
-    $("#anaBody").innerHTML = analysisHtml(analyze(x));
+    $("#anaBody").innerHTML = analysisHtml(a);
     $("#anaModal").hidden = false;
+    loadGeo(x);
+  }
+
+  // подсказки по локации поверх базового списка арендаторов (простые правила на OSM-цифрах)
+  function tenantTips(x, g) {
+    const tips = [];
+    if (x.type === "Торговое") {
+      if (!g.pharmacies) tips.push("аптек в 300 м нет — сильная точка под аптеку");
+      if (g.food <= 1 && g.poi >= 12) tips.push("окружение живое, а общепита мало — ниша для кафе/пекарни");
+      if (g.shops >= 15) tips.push("плотная розница рядом — трафик есть, конкуренция высокая");
+      if (g.schools) tips.push("рядом школа/сад — детские товары, канцелярия, кружки");
+    }
+    if (x.type === "Офис" && !g.food) tips.push("общепита рядом нет — минус для сотрудников, плюс для столовой/кофейни на 1-м этаже");
+    if (g.transit_m != null && g.transit_m <= 250) tips.push(`остановка в ${g.transit_m} м — удобно без машины`);
+    if (g.transit_m == null) tips.push("транспорта в 800 м нет — рассчитывать только на автомобилистов");
+    if (g.activity === "очень низкая" && x.type !== "Склад" && x.type !== "Производство")
+      tips.push("вокруг пусто — скорее склад, мастерская или шоурум «по записи»");
+    return tips;
+  }
+
+  function loadGeo(x) {
+    if (!$("#geoBox")) return;
+    fetch(`/api/geo?hash=${encodeURIComponent(x.hash)}`).then((r) => r.json()).then((g) => {
+      if (anaCur !== x.hash) return;                 // модалку уже переоткрыли на другом объекте
+      const el = $("#geoBox");
+      if (!el) return;
+      if (!g.ok) {
+        el.querySelector(".ana-note").textContent = `локация: ${g.error || "нет данных"}`;
+        return;
+      }
+      const row = (l, v) => `<div class="ana-row"><span>${l}</span><b>${v}</b></div>`;
+      el.innerHTML = `<div class="ana-box__t">Локация (OSM, радиус 300 м)</div>` +
+        row("Активность вокруг", `${esc(g.activity)} · ${g.poi} точек`) +
+        row("Магазины / общепит / аптеки", `${g.shops} / ${g.food} / ${g.pharmacies}`) +
+        row("До транспорта", g.transit_m != null ? `${g.transit_m} м` : "нет в 800 м") +
+        (g.geocoded ? `<div class="ana-note">координаты найдены по адресу (менее точно)</div>` : "");
+      const tips = tenantTips(x, g);
+      const th = $("#tenantsHint");
+      if (th && tips.length) th.innerHTML =
+        `<div class="ana-note">по локации: ${esc(tips.join("; "))}</div>`;
+    }).catch(() => {});
+  }
+
+  function aiVerdict(btn) {
+    const h = anaCur;
+    if (!h) return;
+    btn.disabled = true;
+    btn.textContent = "GLM думает…";
+    postJSON("/api/verdict", { hash: h, stats: anaStats }).then((v) => {
+      if (anaCur !== h) return;
+      const box = $("#aiBox");
+      if (!box) return;
+      box.innerHTML = v.ok
+        ? `<div class="ana-box__t">AI-вердикт (GLM, бесплатно)</div><div class="ana-verdict">${esc(v.text)}</div>`
+        : `<div class="ana-note">AI-вердикт: ${esc(v.error || "не получился")}</div>`;
+    }).catch(() => {
+      btn.disabled = false;
+      btn.textContent = "AI-вердикт";
+    });
   }
 
   function analysisHtml(a) {
@@ -459,9 +537,15 @@
       const txt = p > 3 ? `на ${p}% дороже` : p < -3 ? `на ${-p}% дешевле` : "на уровне рынка";
       return `<span class="ana-pos ana-pos--${cls}">${txt}</span>`;
     };
+    const geoBox = `<div class="ana-box" id="geoBox">
+      <div class="ana-box__t">Локация (OSM, радиус 300 м)</div>
+      <div class="ana-note">оцениваю окружение…</div></div>`;
+    const aiBox = `<div class="ana-box" id="aiBox">
+      <button type="button" class="btn btn--ghost btn--mini" id="aiBtn">${ICON.chart}<span>AI-вердикт</span></button>
+      <div class="ana-note">короткая сводка от бесплатной нейросети GLM (~10 с)</div></div>`;
     if (!x.area || !a.same.length) {
       return head + `<p class="ana-empty">Недостаточно похожих объектов для анализа${x.area ? "" : " (у объекта нет площади)"}.
-        Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>`;
+        Сравнение работает там, где есть несколько объектов того же типа в том же городе.</p>` + geoBox + aiBox;
     }
     const unit = x.deal === "rent" ? "/м²/мес" : "/м²";
     const fmtCur = (v, cur) => cur === "$" ? "$" + nf.format(Math.round(v)) : nf.format(Math.round(v)) + " р.";
@@ -506,7 +590,7 @@
     const tenants = `<div class="ana-box">
       <div class="ana-box__t">Вероятные арендаторы</div>
       <div class="ana-tenants">${esc(tenantHint(x.type))}</div>
-      <div class="ana-note">базовая подсказка по типу; «умную» оценку с учётом локации добавим в v2</div></div>`;
+      <div id="tenantsHint"><div class="ana-note">базовая подсказка по типу; уточнения по локации появятся ниже</div></div></div>`;
 
     const top = a.same.slice()
       .sort((p, q) => Math.abs(p.area - x.area) - Math.abs(q.area - x.area)).slice(0, 5);
@@ -521,7 +605,7 @@
 
     const fewNote = a.same.length < 4
       ? `<div class="ana-note">⚠ аналогов всего ${a.same.length} — оценка приблизительная</div>` : "";
-    return head + `<div class="ana-rows">${rows.join("")}</div>${fewNote}${invest}${tenants}
+    return head + `<div class="ana-rows">${rows.join("")}</div>${fewNote}${invest}${geoBox}${tenants}${aiBox}
       <div class="ana-box"><div class="ana-box__t">Ближайшие аналоги</div>
       <ul class="ana-list">${list}</ul></div>`;
   }
@@ -546,6 +630,12 @@
     if (excel) return revealExcel(excel);
     const ana = e.target.closest(".btn--ana");
     if (ana) return openAnalysis(ana);
+  });
+
+  // кнопка AI-вердикта живёт в модалке анализа — grid-обработчик её не видит
+  $("#anaBody").addEventListener("click", (e) => {
+    const ai = e.target.closest("#aiBtn");
+    if (ai) aiVerdict(ai);
   });
 
   async function copyPhone(btn) {

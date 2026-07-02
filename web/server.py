@@ -21,6 +21,9 @@ import subprocess
 import sys
 import threading
 import time
+import math
+import urllib.error
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -429,6 +432,193 @@ def reveal(hsh):
     return {"ok": True, "sheet": sheet, "row": row}
 
 
+# ---- гео-анализ локации (OSM Overpass/Nominatim, бесплатно, без ключей) ----
+OVERPASS_UA = "realty-tool/1.0 (commercial-realty enrichment)"  # браузерный UA Overpass режет (406)
+OVERPASS = "https://overpass-api.de/api/interpreter"
+NOMINATIM = "https://nominatim.openstreetmap.org/search"
+GEO_CACHE_FILE = WEB_DIR / "geo_cache.json"     # вечный кэш: окружение меняется медленно
+_cache_lock = threading.Lock()
+
+
+def _json_cache(path):
+    with contextlib.suppress(Exception):
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {}
+
+
+GEO_CACHE = _json_cache(GEO_CACHE_FILE)
+
+
+def _cache_put(cache, path, key, val):
+    with _cache_lock:
+        cache[key] = val
+        path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+
+
+def _geocode(addr):
+    """Адрес → [lat, lng] через Nominatim (объекты без координат — в основном realt)."""
+    q = addr if "Беларус" in addr else addr + ", Беларусь"
+    params = urllib.parse.urlencode({"q": q, "format": "json", "limit": "1"})
+    req = urllib.request.Request(NOMINATIM + "?" + params, headers={"User-Agent": OVERPASS_UA})
+    with contextlib.suppress(Exception):
+        with urllib.request.urlopen(req, timeout=20) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+        if d:
+            return [float(d[0]["lat"]), float(d[0]["lon"])]
+    return None
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = (math.sin(math.radians(lat2 - lat1) / 2) ** 2
+         + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2)
+    return 2 * 6371000 * math.asin(math.sqrt(a))
+
+
+_FOOD = {"cafe", "restaurant", "fast_food", "bar"}
+_POI_AMENITY = _FOOD | {"pharmacy", "bank", "marketplace"}
+
+
+def api_geo(hsh):
+    """Окружение объекта: POI в 300 м по категориям + ближайший транспорт в 800 м.
+    Шкала активности та же, что в save_marked.py (сопоставимо с сохранёнками)."""
+    if not hsh or hsh not in INDEX:
+        return {"ok": False, "error": "объект не найден"}
+    if hsh in GEO_CACHE:
+        return GEO_CACHE[hsh]
+    it = INDEX[hsh]
+    coords, geocoded = it.get("coords"), False
+    if not coords:
+        if not it.get("addr"):
+            return {"ok": False, "error": "у объекта нет ни координат, ни адреса"}
+        coords, geocoded = _geocode(it["addr"]), True
+        if not coords:
+            return {"ok": False, "error": "адрес не геокодировался"}
+    lat, lng = coords
+    q = (f"[out:json][timeout:25];("
+         f"node(around:800,{lat},{lng})[shop];"
+         f"node(around:800,{lat},{lng})[amenity~'^(cafe|restaurant|fast_food|bar|pharmacy|bank|marketplace|school|kindergarten)$'];"
+         f"node(around:800,{lat},{lng})[office];"
+         f"node(around:800,{lat},{lng})[highway=bus_stop];"
+         f"node(around:800,{lat},{lng})[railway~'^(station|tram_stop)$'];"
+         f"node(around:800,{lat},{lng})[station=subway];"
+         f");out body;")
+    els = None
+    for attempt in (1, 2):    # Overpass бывает перегружен (429/504) — один повтор
+        try:
+            data = urllib.parse.urlencode({"data": q}).encode()
+            req = urllib.request.Request(OVERPASS, data=data, headers={"User-Agent": OVERPASS_UA})
+            with urllib.request.urlopen(req, timeout=40) as r:
+                els = json.loads(r.read().decode("utf-8", "replace")).get("elements", [])
+            break
+        except urllib.error.HTTPError as e:
+            err = f"OSM недоступен (HTTP {e.code})"
+        except Exception as e:
+            err = f"OSM недоступен ({type(e).__name__})"
+        time.sleep(2)
+    if els is None:           # сбой сети НЕ кэшируем — следующий клик попробует снова
+        return {"ok": False, "error": err}
+    c = {"poi": 0, "shops": 0, "food": 0, "pharmacies": 0, "offices": 0, "schools": 0}
+    transit = None
+    for el in els:
+        t, la, lo = el.get("tags", {}), el.get("lat"), el.get("lon")
+        if la is None:
+            continue
+        d = _haversine_m(lat, lng, la, lo)
+        if (t.get("highway") == "bus_stop" or t.get("railway") in ("station", "tram_stop")
+                or t.get("station") == "subway"):
+            transit = d if transit is None else min(transit, d)
+            continue
+        if d > 300:
+            continue
+        if t.get("amenity") in ("school", "kindergarten"):
+            c["schools"] += 1
+            continue                                  # школы — контекст, в «активность» не входят
+        c["poi"] += 1
+        if "shop" in t:
+            c["shops"] += 1
+        if t.get("amenity") in _FOOD:
+            c["food"] += 1
+        if t.get("amenity") == "pharmacy":
+            c["pharmacies"] += 1
+        if "office" in t:
+            c["offices"] += 1
+    act = ("высокая" if c["poi"] >= 40 else "средняя" if c["poi"] >= 12
+           else "низкая" if c["poi"] else "очень низкая")
+    res = {"ok": True, "activity": act, **c,
+           "transit_m": int(transit) if transit is not None else None,
+           "coords": [lat, lng], "geocoded": geocoded}
+    _cache_put(GEO_CACHE, GEO_CACHE_FILE, hsh, res)
+    return res
+
+
+# ---- AI-вердикт по объекту (бесплатный GLM/z.ai; ключ ~/.zai_key) ----
+ZAI_URL = "https://api.z.ai/api/paas/v4/chat/completions"
+ZAI_MODEL = "glm-4.5-flash"
+VERDICT_CACHE_FILE = WEB_DIR / "verdict_cache.json"
+VERDICT_CACHE = _json_cache(VERDICT_CACHE_FILE)
+_VERDICT_SYS = ("Ты — аналитик коммерческой недвижимости Беларуси, помогаешь лидогенератору "
+                "при обзвоне собственников. Отвечай по-русски, кратко и конкретно, "
+                "без воды и без markdown-разметки.")
+
+
+def _zai_key():
+    k = os.environ.get("ZAI_API_KEY") or ""
+    f = Path.home() / ".zai_key"
+    if not k and f.exists():
+        k = f.read_text(encoding="utf-8").strip()
+    return k
+
+
+def api_verdict(hsh, stats):
+    if not hsh or hsh not in INDEX:
+        return {"ok": False, "error": "объект не найден"}
+    it = INDEX[hsh]
+    ck = f"{hsh}|{it.get('usd') or it.get('price') or ''}"  # смена цены → вердикт пересчитается
+    if ck in VERDICT_CACHE:
+        return VERDICT_CACHE[ck]
+    key = _zai_key()
+    if not key:
+        return {"ok": False, "error": "нет ключа z.ai (~/.zai_key)"}
+    geo = GEO_CACHE.get(hsh) or {}
+    facts = {"тип": it.get("type"), "сделка": "аренда" if it.get("deal") == "rent" else "продажа",
+             "город": it.get("city"), "адрес": it.get("addr"), "площадь_м2": it.get("area"),
+             "цена": it.get("usd") or it.get("price"), "этаж": it.get("floor"),
+             "рынок": stats or "нет данных",
+             "локация_OSM": ({k: geo.get(k) for k in
+                              ("activity", "poi", "shops", "food", "pharmacies", "offices",
+                               "schools", "transit_m")} if geo.get("ok") else "нет данных")}
+    prompt = (f"Объект и данные (JSON):\n{json.dumps(facts, ensure_ascii=False)}\n\n"
+              "Дай вердикт ровно тремя короткими абзацами:\n"
+              "1. Цена против рынка (по данным «рынок»).\n"
+              "2. Кому объект подойдёт (арендаторы/использование) с учётом «локация_OSM».\n"
+              "3. Что упомянуть в разговоре с собственником при обзвоне.\n"
+              "Не выдумывай факты, которых нет в данных; чисел не изобретай.")
+    body = json.dumps({"model": ZAI_MODEL, "temperature": 0.3, "max_tokens": 700,
+                       "thinking": {"type": "disabled"},  # иначе размышления съедают max_tokens → пустой content
+                       "messages": [{"role": "system", "content": _VERDICT_SYS},
+                                    {"role": "user", "content": prompt}]}).encode()
+    text = None
+    for attempt in (1, 2):    # под VPN первое соединение бывает обрывается — один повтор
+        req = urllib.request.Request(ZAI_URL, data=body, headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {key}"})
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                d = json.loads(r.read().decode("utf-8", "replace"))
+            text = (d["choices"][0]["message"]["content"] or "").strip()
+            break
+        except Exception as e:  # сбой не кэшируем
+            err = f"GLM недоступен ({type(e).__name__})"
+        time.sleep(2)
+    if text is None:
+        return {"ok": False, "error": err}
+    if not text:
+        return {"ok": False, "error": "GLM вернул пустой ответ"}
+    res = {"ok": True, "text": text}
+    _cache_put(VERDICT_CACHE, VERDICT_CACHE_FILE, ck, res)
+    return res
+
+
 # ---- HTTP ----
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
@@ -489,6 +679,10 @@ class Handler(SimpleHTTPRequestHandler):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
             return self._send_image((q.get("hash") or [""])[0].strip())
+        if route == "/api/geo":
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            return self._send_json(api_geo((q.get("hash") or [""])[0].strip()))
         if route == "/api/update/status":
             return self._send_json({k: JOB[k] for k in JOB})
         return super().do_GET()
@@ -499,6 +693,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send_json(reveal((self._read_json().get("hash") or "").strip()))
         if route == "/api/save":
             return self._send_json(save_ad((self._read_json().get("hash") or "").strip()))
+        if route == "/api/verdict":
+            b = self._read_json()
+            return self._send_json(api_verdict((b.get("hash") or "").strip(), b.get("stats")))
         if route == "/api/update":
             if JOB["running"]:
                 return self._send_json({"ok": False, "error": "уже выполняется"})

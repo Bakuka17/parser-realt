@@ -30,6 +30,7 @@ import megapolis_parser as M
 import kufar_parser as K
 import gohome_parser as G
 import byrealty_parser as BY
+import price_history as PH
 
 HERE = Path(__file__).parent
 DEFAULT_OUT = HERE / "commercial_realty.xlsx"
@@ -84,7 +85,8 @@ def update_memory_and_backup(out_file: Path) -> None:
         try:
             BACKUP_DIR.mkdir(exist_ok=True)
             n = 0
-            for f in list(HERE.glob("*.py")) + list(HERE.glob("*.xlsx")) + list(HERE.glob("*.command")):
+            for f in (list(HERE.glob("*.py")) + list(HERE.glob("*.xlsx"))
+                      + list(HERE.glob("*.command")) + list(HERE.glob("*.json"))):  # json: история цен и пр.
                 if f.name.startswith("~$"):
                     continue
                 shutil.copy2(f, BACKUP_DIR / f.name)
@@ -127,42 +129,50 @@ def collect_realt(prev_urls, last_run, cfg, on_checkpoint=None) -> list[dict]:
     )
 
 
-def collect_megapolis(prev_urls, last_run, cfg) -> list[dict]:
+def collect_megapolis(prev_urls, last_run, cfg, prices=None) -> list[dict]:
     scfg = SimpleNamespace(max_pages=cfg.max_pages, full=cfg.full)
     new: list[dict] = []
     pu = set() if cfg.full else prev_urls
     for ci, (path, deal, type_) in enumerate(M.CATEGORIES):
         items = M.scrape_category(path, deal, type_, pu, None, scfg)
+        if prices is not None:
+            prices.track(items, "megapolis-real.by")
         new.extend(it for it in items if R.normalize_url(it["Ссылка"]) not in prev_urls)
     return new
 
 
-def collect_kufar(prev_urls, last_run, cfg) -> list[dict]:
+def collect_kufar(prev_urls, last_run, cfg, prices=None) -> list[dict]:
     scfg = SimpleNamespace(max_pages=cfg.max_pages, full=cfg.full)
     new: list[dict] = []
     pu = set() if cfg.full else prev_urls
     for deal_frag, deal in K.DEALS:
         items = K.scrape_deal(cfg.city, deal_frag, deal, pu, None, scfg)
+        if prices is not None:
+            prices.track(items, "kufar.by")
         new.extend(it for it in items if R.normalize_url(it["Ссылка"]) not in prev_urls)
     return new
 
 
-def collect_gohome(prev_urls, last_run, cfg) -> list[dict]:
+def collect_gohome(prev_urls, last_run, cfg, prices=None) -> list[dict]:
     scfg = SimpleNamespace(max_pages=cfg.max_pages, full=cfg.full, coords=False)
     new: list[dict] = []
     pu = set() if cfg.full else prev_urls
     for deal_path, deal in G.CATEGORIES:
         items = G.scrape_category(deal_path, deal, pu, None, scfg)
+        if prices is not None:
+            prices.track(items, "gohome.by")
         new.extend(it for it in items if R.normalize_url(it["Ссылка"]) not in prev_urls)
     return new
 
 
-def collect_byrealty(prev_urls, last_run, cfg) -> list[dict]:
+def collect_byrealty(prev_urls, last_run, cfg, prices=None) -> list[dict]:
     scfg = SimpleNamespace(max_pages=1, full=cfg.full)
     new: list[dict] = []
     pu = set() if cfg.full else prev_urls
     for path, deal in BY.CATEGORIES:
         items = BY.scrape_category(path, deal, pu, None, scfg)
+        if prices is not None:
+            prices.track(items, "byrealty.by")
         new.extend(it for it in items if R.normalize_url(it["Ссылка"]) not in prev_urls)
     return new
 
@@ -212,6 +222,7 @@ def main() -> None:
 
     all_new: list[dict] = []
     summary: dict[str, str] = {}
+    prices = PH.Tracker(prev_db, R.normalize_url)  # история цен: known-URL сравниваются с базой
     for src in sources:
         print(f"\n{'='*60}\n=== ИСТОЧНИК: {src} ===\n{'='*60}")
         try:
@@ -224,7 +235,7 @@ def main() -> None:
 
                 got = collect_realt(prev_urls, last_run, cfg, on_checkpoint=_realt_ckpt)
             else:
-                got = COLLECTORS[src](prev_urls, last_run, cfg)
+                got = COLLECTORS[src](prev_urls, last_run, cfg, prices)
             all_new.extend(got)
             summary[src] = f"{len(got)} новых"
             # после источника — обновим prev_urls и сделаем чекпойнт
@@ -250,6 +261,11 @@ def main() -> None:
     for src in sources:
         print(f"   {src}: {summary.get(src, '—')}")
     print(f"   файл: {cfg.out}")
+    if prices.changes:
+        down = sum(1 for c in prices.changes if c["dir"] == "down")
+        up = sum(1 for c in prices.changes if c["dir"] == "up")
+        prices.flush()
+        print(f"   💰 изменений цен: {len(prices.changes)} (↓{down} ↑{up}) → {PH.HISTORY_FILE.name}")
 
     # Авто-память + бэкап
     update_memory_and_backup(cfg.out)

@@ -344,6 +344,14 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 }
 .lead__price .per { font-size: var(--fs-xs); color: var(--ink-3); }
 .lead__price .noprice { font-size: var(--fs-md); color: var(--ink-3); font-weight: 500; }
+.lead__price .pch {
+  margin-left: var(--s2);
+  font-size: var(--fs-xs); font-weight: 600;
+  padding: 1px var(--s2); border-radius: var(--r-pill);
+  vertical-align: middle; white-space: nowrap;
+}
+.pch--down { color: var(--call); background: oklch(0.585 0.13 152 / 0.12); }
+.pch--up   { color: var(--ink-3); background: var(--surface-3); }
 .lead__meta {
   display: flex; gap: var(--s2) var(--s3); flex-wrap: wrap;
   font-size: var(--fs-sm); color: var(--ink-2); font-variant-numeric: tabular-nums;
@@ -591,3 +599,6 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 /* вердикты анализа: хорошо/плохо (cap rate против нормы) — зелёный/красный как у дешевле/дороже */
 .ana-pos--good { color: var(--call); }
 .ana-pos--bad  { color: var(--sale); }
+
+/* AI-вердикт: GLM отвечает абзацами с переносами строк */
+.ana-verdict { white-space: pre-line; font-size: var(--fs-base); color: var(--ink); }

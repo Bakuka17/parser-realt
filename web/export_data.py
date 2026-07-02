@@ -19,6 +19,7 @@ SRC = ROOT / "commercial_realty.xlsx"
 OUT = ROOT / "web" / "data.js"
 BELRETAIL_XLSX = ROOT / "belretail_phones.xlsx"   # телефоны компаний (belretail_phones.py)
 PHOTO_CACHE_F = ROOT / "web" / "photo_cache.json"
+PRICE_HISTORY_F = ROOT / "price_history.json"     # лог изменений цен (collect_realty)
 
 # realt не отдаёт фото в листинге → дашборд тянет og:image на лету и копит их в
 # photo_cache.json. Вливаем накопленное прямо в data.js, чтобы такие фото показывались
@@ -172,6 +173,31 @@ def load_sheet(ws, deal, sheet_name):
         }
         out.append(item)
     return out
+
+
+def load_price_history():
+    """price_history.json → {норм_url: последняя запись}. Файл появляется после
+    первого прогона collect_realty с изменившимися ценами; нет файла — нет бейджей."""
+    try:
+        hist = json.loads(PRICE_HISTORY_F.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {c["url"]: c for c in hist if c.get("url")}  # поздние записи затирают ранние
+
+
+def attach_price_changes(items):
+    hist = load_price_history()
+    if not hist:
+        return
+    n = 0
+    for it in items:
+        u = (it.get("url") or "").split("?")[0].split("#")[0].rstrip("/")
+        c = hist.get(u)
+        if c:
+            it["pch"] = {"dir": c["dir"], "old": c["old"], "date": c["date"]}
+            n += 1
+    if n:
+        print(f"история цен: бейджей {n} (из {len(hist)} записей)")
 
 
 def parse_adate(s):
@@ -330,6 +356,7 @@ def main():
     wb.close()
     items += load_belretail()      # компании belretail (отдельный файл, один тел. = одна строка)
     items += load_banks()          # залоговая недвижимость банков (banks_*.xlsx, deal='bank')
+    attach_price_changes(items)    # бейдж «цена ↓/↑» из price_history.json
 
     meta = {
         "total": len(items),
