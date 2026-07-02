@@ -542,3 +542,48 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 /* карточка компании belretail (без фото/цены) */
 .lead--company { min-height: auto; }
 .company-name { font-size: var(--fs-lg); font-weight: 700; color: var(--ink); margin: 6px 0 2px; line-height: 1.25; }
+
+/* мультиселект фильтров (Город/Тип/Источник): кнопка + попап с чекбоксами */
+.msel__btn {
+  appearance: none; -webkit-appearance: none;
+  height: 44px; padding: 14px 30px 2px 10px;
+  font: inherit; font-size: var(--fs-sm); color: var(--ink); text-align: left;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); cursor: pointer;
+  min-width: 108px; max-width: 200px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 19px, calc(100% - 11px) 19px;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+  transition: border-color .15s, box-shadow .15s;
+}
+.msel__btn:focus-visible {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+.msel__btn.on { border-color: var(--accent); color: var(--accent); }
+.msel__pop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+  min-width: 235px; max-height: 340px; overflow: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  box-shadow: 0 12px 32px oklch(0 0 0 / .18);
+  padding: 4px;
+}
+.msel__all {
+  appearance: none; display: block; width: 100%; text-align: left;
+  border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: var(--fs-sm); color: var(--accent);
+  padding: 7px 8px; border-radius: var(--r-sm);
+}
+.msel__all:hover { background: var(--surface-2); }
+.msel__opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: var(--r-sm); cursor: pointer;
+  font-size: var(--fs-sm); color: var(--ink);
+}
+.msel__opt:hover { background: var(--surface-2); }
+.msel__opt input { accent-color: var(--accent); margin: 0; flex: none; }
+.msel__opt span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel__opt i { font-style: normal; color: var(--ink-3); font-size: 11px; }

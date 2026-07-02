@@ -66,20 +66,23 @@
       <label class="chk"><input type="checkbox" class="dealChk" value="bank" autocomplete="off" /> Банки</label>
     </div>
 
-    <label class="field field--select">
+    <div class="field field--select msel" id="cityMsel">
       <span class="field__label">Город</span>
-      <select id="city" aria-label="Город"></select>
-    </label>
+      <button type="button" class="msel__btn" aria-haspopup="listbox" aria-expanded="false">Все города</button>
+      <div class="msel__pop" hidden></div>
+    </div>
 
-    <label class="field field--select">
+    <div class="field field--select msel" id="typeMsel">
       <span class="field__label">Тип</span>
-      <select id="type" aria-label="Тип объекта"></select>
-    </label>
+      <button type="button" class="msel__btn" aria-haspopup="listbox" aria-expanded="false">Все типы</button>
+      <div class="msel__pop" hidden></div>
+    </div>
 
-    <label class="field field--select">
+    <div class="field field--select msel" id="sourceMsel">
       <span class="field__label">Источник</span>
-      <select id="source" aria-label="Источник"></select>
-    </label>
+      <button type="button" class="msel__btn" aria-haspopup="listbox" aria-expanded="false">Все источники</button>
+      <div class="msel__pop" hidden></div>
+    </div>
 
     <div class="field field--range">
       <span class="field__label">Площадь, м²</span>

@@ -79,8 +79,8 @@
   }
 
   // ---------- state ----------
-  const state = { q: "", deals: new Set(), city: "", type: "", source: "", sort: "date",
-                  auctionPast: false, areaMin: null, areaMax: null };
+  const state = { q: "", deals: new Set(), city: new Set(), type: new Set(), source: new Set(),
+                  sort: "date", auctionPast: false, areaMin: null, areaMax: null };
   let filtered = DATA;
   let shown = 0;
   const savedSet = new Set(); // хэши уже сохранённых (сервер знает; кнопка сразу зелёная)
@@ -94,12 +94,44 @@
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }
-  function fillSelect(id, entries, allLabel) {
-    const sel = $("#" + id);
-    sel.innerHTML =
-      `<option value="">${allLabel}</option>` +
-      entries.map(([v, n]) => `<option value="${esc(v)}">${esc(v)} (${nf.format(n)})</option>`).join("");
+  // мультиселект: кнопка + попап с чекбоксами; пустой выбор = «все»
+  const MSELS = [];
+  function makeMulti(id, key, entries, allLabel) {
+    const root = $("#" + id), btn = root.querySelector(".msel__btn"),
+          pop = root.querySelector(".msel__pop"), sel = state[key];
+    pop.innerHTML =
+      `<button type="button" class="msel__all">${esc(allLabel)}</button>` +
+      entries.map(([v, n]) =>
+        `<label class="msel__opt"><input type="checkbox" value="${esc(v)}"><span>${esc(v)}</span><i>${nf.format(n)}</i></label>`).join("");
+    const relabel = () => {
+      const a = [...sel];
+      btn.textContent = !a.length ? allLabel : a.length === 1 ? a[0] : `${a[0]} +${a.length - 1}`;
+      btn.classList.toggle("on", a.length > 0);
+    };
+    const clear = () => {
+      sel.clear();
+      pop.querySelectorAll("input").forEach((c) => (c.checked = false));
+      relabel();
+    };
+    pop.addEventListener("change", (e) => {
+      if (e.target.checked) sel.add(e.target.value); else sel.delete(e.target.value);
+      relabel(); apply();
+    });
+    pop.querySelector(".msel__all").addEventListener("click", () => { clear(); apply(); });
+    btn.addEventListener("click", () => {
+      const willOpen = pop.hidden;
+      closeMsels();
+      pop.hidden = !willOpen;
+      btn.setAttribute("aria-expanded", String(willOpen));
+    });
+    MSELS.push({ pop, btn, clear });
+    relabel();
   }
+  function closeMsels() {
+    MSELS.forEach((m) => { m.pop.hidden = true; m.btn.setAttribute("aria-expanded", "false"); });
+  }
+  document.addEventListener("click", (e) => { if (!e.target.closest(".msel")) closeMsels(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMsels(); });
 
   // ---------- filtering ----------
   function dateKey(s) {
@@ -111,9 +143,9 @@
     const q = state.q.trim().toLowerCase();
     filtered = DATA.filter((x) => {
       if (state.deals.size && !state.deals.has(x.deal)) return false;
-      if (state.city && x.city !== state.city) return false;
-      if (state.type && x.type !== state.type) return false;
-      if (state.source && x.source !== state.source) return false;
+      if (state.city.size && !state.city.has(x.city)) return false;
+      if (state.type.size && !state.type.has(x.type)) return false;
+      if (state.source.size && !state.source.has(x.source)) return false;
       if (state.areaMin != null && !(x.area >= state.areaMin)) return false;
       if (state.areaMax != null && !(x.area <= state.areaMax)) return false;
       // аукционы: по умолчанию скрываем прошедшие (дата уже прошла)
@@ -315,8 +347,8 @@
       ? `Найдено <b>${nf.format(total)}</b> ${word}` +
         (shown < total ? ` · показано ${nf.format(shown)}` : "")
       : "";
-    const dirty = state.q || state.deals.size || state.city || state.type ||
-                  state.source || state.areaMin != null || state.areaMax != null;
+    const dirty = state.q || state.deals.size || state.city.size || state.type.size ||
+                  state.source.size || state.areaMin != null || state.areaMax != null;
     $("#reset").hidden = !dirty;
   }
 
@@ -594,14 +626,13 @@
     document.querySelectorAll("[data-icon]").forEach((n) => (n.innerHTML = ICON[n.dataset.icon] || ""));
 
     // facets
-    fillSelect("city", facet("city"), "Все города");
-    fillSelect("type", facet("type"), "Все типы");
-    fillSelect("source", facet("source"), "Все источники");
+    makeMulti("cityMsel", "city", facet("city"), "Все города");
+    makeMulti("typeMsel", "type", facet("type"), "Все типы");
+    makeMulti("sourceMsel", "source", facet("source"), "Все источники");
 
     // events
     $("#q").addEventListener("input", debounce((e) => { state.q = e.target.value; apply(); }, 130));
-    ["city", "type", "source", "sort"].forEach((id) =>
-      $("#" + id).addEventListener("change", (e) => { state[id] = e.target.value; apply(); }));
+    $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; apply(); });
     ["areaMin", "areaMax"].forEach((id) =>
       $("#" + id).addEventListener("input", debounce((e) => {
         const v = parseFloat(e.target.value); state[id] = isFinite(v) ? v : null; apply();
@@ -618,12 +649,11 @@
     });
 
     function reset() {
-      Object.assign(state, { q: "", city: "", type: "", source: "",
-                             sort: "date", auctionPast: false,
+      Object.assign(state, { q: "", sort: "date", auctionPast: false,
                              areaMin: null, areaMax: null });
       state.deals.clear();
-      $("#q").value = ""; $("#city").value = ""; $("#type").value = "";
-      $("#source").value = ""; $("#sort").value = "date";
+      MSELS.forEach((m) => m.clear());
+      $("#q").value = ""; $("#sort").value = "date";
       $("#areaMin").value = ""; $("#areaMax").value = "";
       $("#auctionPast").checked = false; $("#pastWrap").hidden = true;
       document.querySelectorAll(".dealChk").forEach((cb) => (cb.checked = false));
