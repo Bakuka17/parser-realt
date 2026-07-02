@@ -353,12 +353,13 @@
   }
 
   // ---------- анализ объекта: сравнение с похожими (чистый JS на данных дашборда) ----------
-  function median(nums) {
-    const a = nums.filter((n) => n != null && isFinite(n)).sort((p, q) => p - q);
+  function quantile(nums, q) {
+    const a = nums.filter((n) => n != null && isFinite(n)).sort((p, w) => p - w);
     if (!a.length) return null;
-    const m = Math.floor(a.length / 2);
-    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    const i = (a.length - 1) * q, f = Math.floor(i);
+    return a[f] + ((a[f + 1] ?? a[f]) - a[f]) * (i - f);
   }
+  const median = (nums) => quantile(nums, 0.5);
   const ppmOf = (o) => (o.usd && o.area) ? o.usd / o.area : null;   // $/м² (у аренды — $/м²/мес)
   function totalAny(o) {            // числовой итог объекта: $ (usd) либо BYN из строки цены
     if (o.usd) return { v: o.usd, cur: "$" };
@@ -393,22 +394,31 @@
     const a = (s || "").toLowerCase().replace(/(\d)\s*(?:\/|к|корп|корпус)\s*(\d)/g, "$1к$2");
     return a.split(/[^a-zа-я0-9]+/).filter((t) => t && !ADDR_NOISE.has(t)).sort().join("");
   }
-  // дубль = ТОЧНОЕ совпадение адреса+площади+ЭТАЖА+цены. Разные единицы в одном доме
-  // (другой этаж / другая точная площадь / другая цена) НЕ схлопываются — остаются обе.
-  const dedupKey = (o) => `${normAddr(o.addr)}|${o.area}|${o.floor || ""}|${o.usd || o.price || ""}`;
+  // дубль = совпадение адреса+точной площади. Этаж и цена в ключ НЕ входят: источники
+  // заполняют этаж по-разному (realt «3/4», kufar пусто), а тот же объект с потерянной
+  // ценой — один объект. Разные единицы в доме различаются точной площадью.
+  const dedupKey = (o) => `${normAddr(o.addr)}|${o.area}`;
 
   function comps(x, deal, tol) {  // похожие: та же сделка+тип+город, площадь ±tol; сам объект исключён
     if (!x.area) return [];
     const lo = x.area * (1 - tol), hi = x.area * (1 + tol);
-    const list = DATA.filter((o) => o.hash !== x.hash && o.deal === deal && o.type === x.type &&
-      o.city === x.city && o.area && o.area >= lo && o.area <= hi);
-    // схлопнуть дубли (адрес+площадь+цена): один объект, разные источники → одна запись
+    const [pLo, pHi] = deal === "rent" ? [0.5, 200] : [50, 20000];  // санити $/м²: битые цены — вон
+    const list = DATA.filter((o) => {
+      if (o.hash === x.hash || o.deal !== deal || o.type !== x.type || o.city !== x.city) return false;
+      if (!o.area || o.area < lo || o.area > hi) return false;
+      const p = ppmOf(o);
+      return p == null || (p >= pLo && p <= pHi);
+    });
+    // схлопнуть дубли: с ценой — вперёд, чтобы при схлопывании выживала запись с ценой
+    list.sort((p, q) => (q.usd != null) - (p.usd != null));
     const seen = new Set(x.addr ? [dedupKey(x)] : []);   // исключаем и копии самого объекта
     return list.filter((o) => { const k = dedupKey(o); return seen.has(k) ? false : seen.add(k); });
   }
 
   function analyze(x) {
-    const same = comps(x, x.deal, 0.25);
+    let tol = 0.25;
+    let same = comps(x, x.deal, tol);
+    if (same.length < 6) { tol = 0.5; same = comps(x, x.deal, tol); }  // мало аналогов → шире допуск
     const near = x.coords ? same.filter((o) => {
       const d = kmDist(x.coords, o.coords); return d != null && d <= 2;
     }) : [];
@@ -423,7 +433,9 @@
         payback = x.usd / noi;                        // окупаемость по NOI (честнее, чем по валу)
       }
     }
-    return { x, same, near, ppmSelf: ppmOf(x), medCity: median(same.map(ppmOf)),
+    const ppms = same.map(ppmOf);
+    return { x, same, near, tol, ppmSelf: ppmOf(x), medCity: median(ppms),
+             p25: quantile(ppms, 0.25), p75: quantile(ppms, 0.75),
              medNear: median(near.map(ppmOf)), rate, gross, noi, capRate, payback, rentN };
   }
 
@@ -461,9 +473,12 @@
     const perM2 = sane ? ` · ${fmtCur(ppmSelf2, tot.cur)}${unit}` : "";
     const rows = [
       `<div class="ana-row"><span>Цена этого объекта</span><b>${esc(totalStr)}${perM2}</b></div>`,
-      `<div class="ana-row"><span>Медиана по городу (${esc(x.city)}) · ${a.same.length} похож.</span>
+      `<div class="ana-row"><span>Медиана по городу (${esc(x.city)}) · ${a.same.length} похож.${a.tol > 0.25 ? " (площадь ±50%)" : ""}</span>
         <b>${money(a.medCity)}${unit} ${pos(a.ppmSelf, a.medCity)}</b></div>`,
     ];
+    if (a.p25 != null && a.p75 != null && a.same.length >= 4) rows.push(
+      `<div class="ana-row"><span>Рыночная вилка (25–75% аналогов)</span>
+        <b>${money(a.p25)}–${money(a.p75)}${unit}</b></div>`);
     if (a.near.length) rows.push(
       `<div class="ana-row"><span>Рядом (≤2 км) · ${a.near.length}</span>
         <b>${money(a.medNear)}${unit} ${pos(a.ppmSelf, a.medNear)}</b></div>`);
@@ -479,7 +494,10 @@
             <div class="ana-row"><span>Ожидаемая ставка</span><b>${money(a.rate)}/м²/мес</b></div>
             <div class="ana-row"><span>Валовый доход</span><b>${money(a.gross)}/год</b></div>
             <div class="ana-row"><span>Чистый доход (NOI)</span><b>${money(a.noi)}/год</b></div>
-            <div class="ana-row"><span>Доходность (cap rate)</span><b class="ana-big">${a.capRate.toFixed(1)}%</b></div>
+            <div class="ana-row"><span>Доходность (cap rate)</span><b class="ana-big">${a.capRate.toFixed(1)}%
+              ${a.capRate >= 10 ? '<span class="ana-pos ana-pos--good">выше нормы 8–10%</span>'
+                : a.capRate >= 8 ? '<span class="ana-pos ana-pos--mid">в норме 8–10%</span>'
+                : '<span class="ana-pos ana-pos--bad">ниже нормы 8–10%</span>'}</b></div>
             <div class="ana-row"><span>Окупаемость</span><b class="ana-big">${a.payback.toFixed(1)} лет</b></div>
             <div class="ana-note">NOI — оценка: −вакансия 11%, −расходы 30% (нормы Минска); по ${a.rentN} аренд. аналогам.</div>
           </div>`
@@ -501,7 +519,9 @@
         <b>${money(ppmOf(o))}${unit}</b></li>`;
     }).join("");
 
-    return head + `<div class="ana-rows">${rows.join("")}</div>${invest}${tenants}
+    const fewNote = a.same.length < 4
+      ? `<div class="ana-note">⚠ аналогов всего ${a.same.length} — оценка приблизительная</div>` : "";
+    return head + `<div class="ana-rows">${rows.join("")}</div>${fewNote}${invest}${tenants}
       <div class="ana-box"><div class="ana-box__t">Ближайшие аналоги</div>
       <ul class="ana-list">${list}</ul></div>`;
   }

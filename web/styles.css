@@ -587,3 +587,7 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 .msel__opt input { accent-color: var(--accent); margin: 0; flex: none; }
 .msel__opt span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msel__opt i { font-style: normal; color: var(--ink-3); font-size: 11px; }
+
+/* вердикты анализа: хорошо/плохо (cap rate против нормы) — зелёный/красный как у дешевле/дороже */
+.ana-pos--good { color: var(--call); }
+.ana-pos--bad  { color: var(--sale); }
