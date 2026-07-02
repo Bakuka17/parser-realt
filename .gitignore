@@ -39,3 +39,6 @@ present.html
 # кэши дашборда: гео-окружение (OSM) и AI-вердикты (GLM) — данные, не код
 web/geo_cache.json
 web/verdict_cache.json
+
+# история цен — данные, не код (бэкап в Яндекс через collect_realty)
+price_history.json
