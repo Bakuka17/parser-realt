@@ -16,8 +16,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 PY = sys.executable
 
-# по мере добавления парсеров: + "priorbank", "tcbank", "rrb", "zepter", ...
-BANKS = ["belinvest"]
+# гео-блок под VPN (rrb 403, priorbank/belveb/mtbank timeout) — TODO через бел. IP
+BANKS = ["belinvest", "belapb", "tcbank", "zepter"]
 
 
 def run_bank(name: str) -> tuple[str, int, float]:
