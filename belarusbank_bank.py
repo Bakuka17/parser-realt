@@ -27,7 +27,7 @@ UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit
 
 
 # --- ядро (GLM через delegate_loop 03.07.2026 + фиксы Claude) ---
-from typing import List, Dict, Optional
+from typing import Dict, List
 
 def parse_belarusbank(html: str) -> List[Dict]:
     """Лоты недвижимости Беларусбанка (каталог client-property/nedvizhimost). list[dict]."""

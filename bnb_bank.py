@@ -34,7 +34,7 @@ def parse_bnb(html):
     items = []
     heads = soup.find_all(class_="accordion__head")  # это <a>, тег не фиксируем
     bodies = soup.find_all("div", class_="accordion__body")
-    for head, body in zip(heads, bodies):
+    for head, body in zip(heads, bodies, strict=False):
         title = re.sub(r"\s+", " ", head.get_text(" ", strip=True)).strip()
         if not title:
             continue
