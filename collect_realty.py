@@ -91,6 +91,15 @@ def update_memory_and_backup(out_file: Path) -> None:
                     continue
                 shutil.copy2(f, BACKUP_DIR / f.name)
                 n += 1
+            # код дашборда web/ (без генерата data.js и тяжёлых кэшей photos_cache/saved)
+            web_dst = BACKUP_DIR / "web"
+            web_dst.mkdir(exist_ok=True)
+            for pat in ("*.py", "*.js", "*.css", "*.html", "*.json", "*.md"):
+                for f in (HERE / "web").glob(pat):
+                    if f.name == "data.js":
+                        continue
+                    shutil.copy2(f, web_dst / f.name)
+                    n += 1
             if claude_md.exists():
                 shutil.copy2(claude_md, BACKUP_DIR / "CLAUDE.md")
             # photos/ (фото избранных) — синкаем целиком
