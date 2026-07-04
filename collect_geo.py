@@ -118,6 +118,11 @@ def main() -> None:
         embed_auctions.embed(main=cfg.out)
     except Exception as e:  # noqa: BLE001
         print(f"  ⚠ вкладка «Аукционы» не встроена: {e}")
+    try:  # тот же бэкап в Яндекс, что у collect_realty — любой сбор оставляет свежую копию
+        import collect_realty as CR
+        CR.update_memory_and_backup(cfg.out, label="collect_geo")
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠ бэкап в Яндекс не удался: {e}")
     print(f"\n📦 ИТОГ: {len(final)} (новых: {len(all_new)}, из БД: {len(prev_db)})")
     for src in sources:
         print(f"   {src}: {summary.get(src, '—')}")

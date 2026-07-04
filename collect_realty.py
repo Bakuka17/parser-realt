@@ -40,7 +40,7 @@ ALL_SOURCES = ["realt", "megapolis", "kufar", "gohome", "byrealty"]
 BACKUP_DIR = Path.home() / "Yandex.Disk.localized" / "realty_backup"
 
 
-def update_memory_and_backup(out_file: Path) -> None:
+def update_memory_and_backup(out_file: Path, label: str = "collect_realty") -> None:
     """Обновляет авто-блок состояния в CLAUDE.md и копирует код+данные+память в iCloud."""
     # 1. Свежая статистика из итогового файла
     try:
@@ -107,7 +107,7 @@ def update_memory_and_backup(out_file: Path) -> None:
             if photos_src.is_dir():
                 shutil.copytree(photos_src, BACKUP_DIR / "photos", dirs_exist_ok=True)
             with (BACKUP_DIR / "BACKUP_INFO.txt").open("a", encoding="utf-8") as fh:
-                fh.write(f"{date.today():%Y-%m-%d} collect_realty: {total} объектов, тел {ph_pct}%\n")
+                fh.write(f"{date.today():%Y-%m-%d} {label}: {total} объектов, тел {ph_pct}%\n")
             print(f"  ☁️ Яндекс.Диск: бэкап обновлён ({n} файлов + CLAUDE.md + photos/)")
         except Exception as e:  # noqa: BLE001
             print(f"  ⚠ бэкап в Яндекс.Диск не удался: {e}")
