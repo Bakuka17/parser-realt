@@ -530,7 +530,10 @@ def norm_url(u: str) -> str:
     # Слеш НЕ срезаем: Bitrix-сайты (ipmtorgi/eauction) без хвостового слеша → 404.
     # unquote: у mgcn один и тот же лот живёт как %d0%ba… И кириллицей → без декода
     # инкремент считал старые лоты новыми и плодил дубли (поймано 04.07.2026).
-    return urllib.parse.unquote((u or "").split("?")[0].split("#")[0])
+    u = u or ""
+    if "bc.by" in u:  # у bc.by ВСЁ в query (?id=79&news_id=…) — резать нельзя, лоты сливаются в один
+        return urllib.parse.unquote(u.split("#")[0])
+    return urllib.parse.unquote(u.split("?")[0].split("#")[0])
 
 
 def write_excel(items: list[dict], path: Path, prev_hashes: Optional[set] = None) -> None:

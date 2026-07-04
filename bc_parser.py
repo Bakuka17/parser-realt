@@ -10,8 +10,10 @@
   - tr.row_data с 9 td = продолжение блока — НЕ отдельный лот (цены общие), пропускаем.
 Телефоны: общий колл-центр аренды +375 17 218-18-18; для областей — кураторы
 секторов со страницы ?id=149 (парсятся на лету, сбой → общий номер).
-Аукционы ГХУ (?id=79) пока НЕ парсятся: HTML сохраняется в bank_geo_out2/bc/
-как фикстура — парсер аукционов строится по ней следующим шагом.
+Аукционы ГХУ (?id=79, анонсы «право аренды на 3 года») → auctions_bc.xlsx
+(пересборка целиком, дедуп не нужен — их единицы); лоты/цены живут на деталках
+?id=79&news_id=N — при живом прогоне деталки сохраняются фикстурами в
+bank_geo_out2/bc/ (разбор лотов — TODO по реальному HTML).
 
 Запуск standalone (без VPN): ./bin/python bc_parser.py [--fixtures]  (смоук-печать)
 """
@@ -127,6 +129,63 @@ def parse_listing(html: str, area_n: int, phone: str, contact_name: str) -> list
     return items
 
 
+# предложный падеж из анонса → город (городов у ГХУ шесть, словарь надёжнее морфологии)
+AUC_CITY = {"МИНСКЕ": "г. Минск", "ВИТЕБСКЕ": "г. Витебск", "БРЕСТЕ": "г. Брест",
+            "ГОМЕЛЕ": "г. Гомель", "ГРОДНО": "г. Гродно", "МОГИЛЕВЕ": "г. Могилев"}
+
+
+def collect_auctions(use_fixtures: bool = False) -> list[dict]:
+    """?id=79 «Объявленные аукционы» ГХУ → строки схемы AUCTION_COLUMNS.
+    Лоты/цены живут на деталках ?id=79&news_id=N — они сохраняются фикстурами
+    (разбор лотов — TODO по реальному HTML); пока строка = анонс аукциона."""
+    import auctions_common as A
+    if use_fixtures:
+        html = (FIXDIR / "_id_79.html").read_text("utf-8")
+    else:
+        html = fetch(f"{BASE}/?id=79")
+        FIXDIR.mkdir(parents=True, exist_ok=True)
+        (FIXDIR / "_id_79.html").write_text(html, encoding="utf-8")
+    soup = BeautifulSoup(html, "lxml")
+    content = soup.find("div", class_="content") or soup
+    items = []
+    for p in content.find_all("p", class_="auction-date"):
+        date_txt = p.get_text(" ", strip=True)
+        txt_p = p.find_next_sibling("p", class_="content-txt")
+        if not txt_p:
+            continue
+        desc = txt_p.get_text(" ", strip=True).replace("Подробнее...", "").strip(" .\xa0") + "."
+        a = txt_p.find("a", href=re.compile(r"news_id=(\d+)"))
+        nid = re.search(r"news_id=(\d+)", a["href"]).group(1) if a else ""
+        link = f"{BASE}/?id=79&news_id={nid}" if nid else f"{BASE}/?id=79"
+        city = next((v for k, v in AUC_CITY.items() if k in desc.upper().replace(" ", "")), "")
+        if not use_fixtures and nid:  # фикстура деталки для будущего разбора лотов
+            try:
+                (FIXDIR / f"_id_79_news_{nid}.html").write_text(fetch(link), encoding="utf-8")
+            except Exception:  # noqa: BLE001
+                pass
+        item = {c: "" for c in A.AUCTION_COLUMNS}
+        item.update({
+            "Тип торгов": "Аренда с аукциона",
+            "Объект": "Право аренды нежилых помещений" + (f", {city}" if city else ""),
+            "Район / Город": city,
+            "Дата аукциона": A.parse_date(date_txt),
+            "Организатор": ORG, "Телефон": MAIN_PHONE,
+            "Ссылка": link, "Источник": SOURCE, "Описание": desc,
+            "Хэш": R.hashlib.md5(link.encode()).hexdigest()[:12],
+        })
+        items.append(item)
+    return items
+
+
+def write_auctions(use_fixtures: bool = False) -> int:
+    """auctions_bc.xlsx пересобирается целиком каждый прогон (аукционов единицы)."""
+    import auctions_common as A
+    items = collect_auctions(use_fixtures)
+    if items:
+        A.write_excel(items, Path(__file__).parent / "auctions_bc.xlsx")
+    return len(items)
+
+
 def collect(prev_urls: set, use_fixtures: bool = False) -> list[dict]:
     phones: dict[int, tuple[str, str]] = {}
     try:
@@ -153,13 +212,11 @@ def collect(prev_urls: set, use_fixtures: bool = False) -> list[dict]:
         got = [it for it in got if R.normalize_url(it["Ссылка"]) not in prev_urls]
         print(f"  {AREAS[n]}: {len(got)} лотов")
         new.extend(got)
-    if not use_fixtures:  # фикстура аукционов ГХУ для будущего парсера
-        try:
-            FIXDIR.mkdir(parents=True, exist_ok=True)
-            (FIXDIR / "_id_79.html").write_text(fetch(f"{BASE}/?id=79"), encoding="utf-8")
-            print("  📸 аукционы ?id=79 сохранены в bank_geo_out2/bc/ (фикстура)")
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        n = write_auctions(use_fixtures)
+        print(f"  🔨 аукционы ГХУ: {n} → auctions_bc.xlsx (+фикстуры деталок)")
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠ аукционы bc не собраны: {e}")
     return new
 
 
