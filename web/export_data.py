@@ -51,6 +51,7 @@ COLMAP = {
 
 # аукционы: своя шапка (AUCTION_COLUMNS) — отдельный маппинг
 COLMAP_AUC = {
+    "Тип торгов": "dealKind",
     "Тип объекта": "type",
     "Объект": "title",
     "Адрес": "addr",
@@ -243,6 +244,7 @@ def load_auctions(ws):
             "sheet": "Аукционы",
             "row": excel_row,
             "type": rec.get("type", "") or "Аукцион",
+            "dealKind": rec.get("dealKind", ""),   # Продажа/Аренда с аукциона (mgcn и др.)
             "title": rec.get("title", ""),
             "phone": ", ".join(normalize_phones(rec.get("phone", ""))),
             "url": rec.get("url", ""),

@@ -153,7 +153,7 @@
       if (q) {
         const hay = (x.addr + " " + x.city + " " + x.type + " " + x.phone + " " +
                      x.source + " " + x.desc + " " + (x.title || "") + " " +
-                     (x.org || "")).toLowerCase();
+                     (x.org || "") + " " + (x.dealKind || "")).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -228,7 +228,7 @@
     if (x.area) bits.push(`${nf.format(x.area)} м²`);
     if (x.deposit) bits.push(`задаток ${esc(x.deposit)}`);
     return `<article class="lead lead--auc" data-hash="${esc(x.hash)}">
-      <div class="lead__media"><span class="badge badge--auction">Аукцион</span>${media}</div>
+      <div class="lead__media"><span class="badge badge--auction">${esc(x.dealKind && x.dealKind.includes("Аренда") ? x.dealKind : "Аукцион")}</span>${media}</div>
       <div class="lead__body">
         <div class="lead__top"><span class="lead__kind">${esc(x.type || "Лот")}</span>
           ${x.source ? `<span class="lead__src">${esc(x.source)}</span>` : ""}</div>

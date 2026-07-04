@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+import urllib.parse
 import urllib.request
 from datetime import date
 from pathlib import Path
@@ -515,7 +516,10 @@ def load_prev(path: Path) -> dict[str, dict]:
             rec = {header[i]: row[i] for i in range(len(header)) if header[i]}
             url = rec.get("Ссылка")
             if url:
-                db[str(url).split("?")[0].rstrip("/")] = rec
+                # ключ ТОЛЬКО через norm_url — раньше здесь была своя формула
+                # (rstrip("/") без unquote) → ключи базы и живого сбора не совпадали,
+                # инкремент mgcn пересобирал всё и удваивал файл (поймано 04.07.2026)
+                db[norm_url(str(url))] = rec
         wb.close()
     except Exception as e:  # noqa: BLE001
         print(f"  ⚠ не прочитал {path.name}: {e}")
@@ -524,7 +528,9 @@ def load_prev(path: Path) -> dict[str, dict]:
 
 def norm_url(u: str) -> str:
     # Слеш НЕ срезаем: Bitrix-сайты (ipmtorgi/eauction) без хвостового слеша → 404.
-    return (u or "").split("?")[0].split("#")[0]
+    # unquote: у mgcn один и тот же лот живёт как %d0%ba… И кириллицей → без декода
+    # инкремент считал старые лоты новыми и плодил дубли (поймано 04.07.2026).
+    return urllib.parse.unquote((u or "").split("?")[0].split("#")[0])
 
 
 def write_excel(items: list[dict], path: Path, prev_hashes: Optional[set] = None) -> None:

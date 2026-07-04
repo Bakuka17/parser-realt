@@ -156,7 +156,8 @@ def parse_detail(html: str, card: dict, deal_type: str) -> dict:
     it = A.blank_item(SOURCE)
     text = A.clean(html)
     title = card["title"]
-    it["Тип торгов"] = "Аукцион"
+    # категория листинга: «Продажа с аукциона» / «Аренда с аукциона» / «Аренда земли»
+    it["Тип торгов"] = deal_type or "Аукцион"
     it["Объект"] = title
     # дата: из карточки, иначе из текста
     it["Дата аукциона"] = A.parse_date(card.get("date_raw", "")) or A.parse_date(text)

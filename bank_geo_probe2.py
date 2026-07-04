@@ -26,7 +26,7 @@ socket.setdefaulttimeout(20)
 
 # ссылки, по которым стоит идти вглубь
 FOLLOW = re.compile(r"(?i)property|imush|realiz|prodazh|zalog|nedvizh|torg|auktsion|"
-                    r"PAGEN|page=|section|catalog")
+                    r"PAGEN|page=|section|catalog|arenda|[?&]id=\d+")
 # страницы с этими словами считаем содержательными (метрика в отчёте)
 RE_WORDS = re.compile(r"(?i)здание|помещение|квартир|гараж|склад|офис|недвижим|изолирован")
 PRICE = re.compile(r"(?i)\d[\d\s\xa0’'.,]{3,}\s*(?:руб|BYN|бел)")
@@ -35,6 +35,8 @@ TARGETS = {
     "belarusbank": ["https://belarusbank.by/o-banke/property/bank-property/",
                     "https://belarusbank.by/o-banke/property/client-property/"],
     "bnb": ["https://www.bnb.by/", "https://bnb.by/"],
+    # bc.by — наводка Дениса 04.07: аукционы + аренда (структура ссылок ?id=N)
+    "bc": ["https://bc.by/?id=4", "https://bc.by/"],
 }
 MAX_PAGES = 40
 MAX_DEPTH = 3
