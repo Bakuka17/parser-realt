@@ -121,7 +121,7 @@ def parse_listing(html: str, area_n: int, phone: str, contact_name: str) -> list
             "Контакт": ORG, "Имя контакта": contact_name,
             "Ссылка": url, "Дата публикации": "", "Источник": SOURCE,
             "Сохранить": "", "Фото URL": "", "Координаты": "",
-            "Хэш": h, "_deal": "rent",
+            "Хэш": h, "_deal": "Аренда",  # имя ЛИСТА (не "rent") — write_excel кладёт по нему
         })
         items.append(item)
     return items
