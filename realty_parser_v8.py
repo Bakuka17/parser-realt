@@ -228,6 +228,8 @@ class RunConfig:
 
 
 def normalize_url(u: str) -> str:
+    if "bc.by" in u:  # у bc.by ВСЁ в query (?id=…&room=…) — резать нельзя, иначе все лоты = один ключ
+        return u.split("#")[0].rstrip("/")
     return u.split("?")[0].split("#")[0].rstrip("/")
 
 

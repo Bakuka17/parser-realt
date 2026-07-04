@@ -25,10 +25,11 @@ from types import SimpleNamespace
 import realty_parser_v8 as R
 import domovita_parser as D
 import edc_parser as E
+import bc_parser as BC
 
 HERE = Path(__file__).parent
 DEFAULT_OUT = HERE / "commercial_realty.xlsx"
-ALL = ["domovita", "edc"]
+ALL = ["domovita", "edc", "bc"]
 
 
 def exit_country() -> str | None:
@@ -60,7 +61,12 @@ def run_edc(prev_urls, cfg) -> list[dict]:
     return new
 
 
-RUNNERS = {"domovita": run_domovita, "edc": run_edc}
+def run_bc(prev_urls, cfg) -> list[dict]:
+    # аренда госпомещений ГХУ (bc.by): 7 областей одной страницей, инкрементал по URL
+    return BC.collect(prev_urls)
+
+
+RUNNERS = {"domovita": run_domovita, "edc": run_edc, "bc": run_bc}
 
 
 def main() -> None:
