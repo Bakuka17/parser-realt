@@ -208,6 +208,13 @@
       : `<div class="lead__ph">${icon}<span>${esc(x.type || label)}</span></div>`;
   }
 
+  function addrHtml(x) {
+    // город не показываем отдельно, если он уже в начале/внутри адреса (гос-лоты: «Гомельская область, Гомельская область, …»)
+    const dup = x.city && (x.addr || "").toLowerCase().includes(x.city.toLowerCase());
+    const showCity = x.city && !dup;
+    return `${showCity ? `<span class="city">${esc(x.city)}</span>` : ""}${showCity && x.addr ? ", " : ""}${esc(x.addr)}`;
+  }
+
   function auctionCard(x) {
     const media = photoTag(x, ICON.gavel, "Лот");
     const phone = x.phone ? x.phone.split(/[,;]/)[0].trim() : "";
@@ -228,7 +235,7 @@
     if (x.area) bits.push(`${nf.format(x.area)} м²`);
     if (x.deposit) bits.push(`задаток ${esc(x.deposit)}`);
     return `<article class="lead lead--auc" data-hash="${esc(x.hash)}">
-      <div class="lead__media"><span class="badge badge--auction">${esc(x.dealKind && x.dealKind.includes("Аренда") ? x.dealKind : "Аукцион")}</span>${media}</div>
+      <div class="lead__media"><span class="badge badge--auction">${esc(x.dealKind && x.dealKind.includes("1 БВ") ? "За 1 БВ" : x.dealKind && x.dealKind.includes("Аренда") ? x.dealKind : "Аукцион")}</span>${media}</div>
       <div class="lead__body">
         <div class="lead__top"><span class="lead__kind">${esc(x.type || "Лот")}</span>
           ${x.source ? `<span class="lead__src">${esc(x.source)}</span>` : ""}</div>
@@ -236,7 +243,7 @@
         <div class="lead__price">${x.price ? `<b>${esc(x.price)}</b>` : '<span class="noprice">Цена по запросу</span>'}</div>
         ${dateLine}
         <div class="lead__meta">${bits.map((b) => `<span>${b}</span>`).join("")}</div>
-        <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}${x.org ? ` · ${esc(x.org)}` : ""}</div>
+        <div class="lead__addr">${addrHtml(x)}${x.org ? ` · ${esc(x.org)}` : ""}</div>
       </div>
       <div class="lead__actions">${callBtn}</div>
       <div class="lead__actions2">${map}${ext}${excel}</div>
@@ -284,7 +291,7 @@
         ${x.title ? `<div class="auc-title">${esc(x.title)}</div>` : ""}
         <div class="lead__price">${x.price ? `<b>${esc(x.price)}</b>` : '<span class="noprice">Цена по запросу</span>'}</div>
         <div class="lead__meta">${bits.map((b) => `<span>${b}</span>`).join("")}</div>
-        <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}</div>
+        <div class="lead__addr">${addrHtml(x)}</div>
       </div>
       <div class="lead__actions">${callBtn}</div>
       <div class="lead__actions2">${map}${ext}</div>
@@ -331,7 +338,7 @@
           ${x.source ? `<span class="lead__src">${esc(x.source)}</span>` : ""}</div>
         <div class="lead__price">${priceHtml(x)}${pchHtml(x)}</div>
         <div class="lead__meta">${metaHtml(x)}</div>
-        <div class="lead__addr">${x.city ? `<span class="city">${esc(x.city)}</span>` : ""}${x.city && x.addr ? ", " : ""}${esc(x.addr)}</div>
+        <div class="lead__addr">${addrHtml(x)}</div>
       </div>
       <div class="lead__actions">${callBtn}</div>
       <div class="lead__actions2">${ana}${save}${excel}${map}${ext}</div>
