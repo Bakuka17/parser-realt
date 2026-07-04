@@ -14,6 +14,7 @@
 """
 import re
 import socket
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -43,12 +44,28 @@ MAX_DEPTH = 3
 
 
 def fetch(url: str) -> str:
+    # ⚠ грабля 04.07: decode("utf-8","ignore") у cp1251-сайтов (bc.by) ВЫБРАСЫВАЛ всю
+    # кириллицу из сохранённых страниц → charset берём из заголовка/меты
     try:
         req = urllib.request.Request(url, headers=UA)
-        return urllib.request.urlopen(req).read().decode("utf-8", "ignore")
+        resp = urllib.request.urlopen(req)
+        raw = resp.read()
+        enc = resp.headers.get_content_charset()
+        if not enc:
+            m = re.search(rb'charset=["\']?([\w-]+)', raw[:4096])
+            enc = m.group(1).decode("ascii", "ignore") if m else "utf-8"
+        try:
+            return raw.decode(enc, "replace")
+        except LookupError:
+            return raw.decode("utf-8", "replace")
     except Exception as e:  # noqa: BLE001
         print(f"  ⛔ {type(e).__name__}: {url[:70]}")
         return ""
+
+
+def norm(url: str) -> str:
+    # единый ключ дедупа (без схемы/www — http и https НЕ разные страницы)
+    return re.sub(r"^https?://(www\.)?", "", url.split("#")[0]).rstrip("/")
 
 
 def slug(url: str) -> str:
@@ -64,7 +81,7 @@ def crawl(name: str, starts: list) -> list:
     pages = 0
     while queue and pages < MAX_PAGES:
         url, depth = queue.pop(0)
-        key = url.split("#")[0].rstrip("/")
+        key = norm(url)
         if key in seen:
             continue
         seen.add(key)
@@ -90,16 +107,18 @@ def crawl(name: str, starts: list) -> list:
                 continue
             if re.search(r"(?i)\.(pdf|jpg|png|zip|doc)|strahovan|kredit|vklad", absu):
                 continue
-            if absu.split("#")[0].rstrip("/") not in seen:
+            if norm(absu) not in seen:
                 queue.append((absu, depth + 1))
         time.sleep(1.0)
     return report
 
 
 def main():
+    # аргументы = какие банки гнать (пусто = все): ./bin/python bank_geo_probe2.py bc
+    picked = {n: TARGETS[n] for n in sys.argv[1:]} if len(sys.argv) > 1 else TARGETS
     OUT.mkdir(exist_ok=True)
     all_report = []
-    for name, starts in TARGETS.items():
+    for name, starts in picked.items():
         print(f"\n===== {name} =====")
         all_report.append(f"===== {name} =====")
         all_report += crawl(name, starts)
