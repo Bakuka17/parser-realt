@@ -142,7 +142,11 @@
   function apply() {
     const q = state.q.trim().toLowerCase();
     filtered = DATA.filter((x) => {
-      if (state.deals.size && !state.deals.has(x.deal)) return false;
+      if (state.deals.size && !state.deals.has(x.deal)) {
+        // «За 1 БВ» — виртуальный сегмент: аукционы госимущества с ценой в 1 базовую
+        const onebv = state.deals.has("onebv") && x.deal === "auction" && (x.dealKind || "").includes("1 БВ");
+        if (!onebv) return false;
+      }
       if (state.city.size && !state.city.has(x.city)) return false;
       if (state.type.size && !state.type.has(x.type)) return false;
       if (state.source.size && !state.source.has(x.source)) return false;
@@ -771,7 +775,7 @@
       cb.checked = false;  // старт: ничего не выбрано = показаны все сделки (WebKit иначе восстанавливает)
       cb.addEventListener("change", () => {
         if (cb.checked) state.deals.add(cb.value); else state.deals.delete(cb.value);
-        $("#pastWrap").hidden = !state.deals.has("auction");  // «прошедшие» — только когда выбраны аукционы
+        $("#pastWrap").hidden = !state.deals.has("auction") && !state.deals.has("onebv");  // «прошедшие» — только когда выбраны аукционы/1 БВ
         apply();
       });
     });
