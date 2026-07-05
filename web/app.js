@@ -819,6 +819,7 @@
     const modal = $("#updModal"), log = $("#updLog"), spin = $("#updSpin");
     const stop = $("#updStop"), close = $("#updClose");
     const btnBase = $("#btnUpdate");
+    const btnAuc = $("#btnUpdateAuctions"), btnBanks = $("#btnUpdateBanks");
     const title = $("#updTitle"), hint = modal.querySelector(".modal__hint");
     let poll = null, doneReload = false;
 
@@ -834,7 +835,7 @@
       log.scrollTop = log.scrollHeight;
       spin.hidden = !s.running;
       stop.hidden = !s.running;
-      btnBase.disabled = s.running;
+      btnBase.disabled = btnAuc.disabled = btnBanks.disabled = s.running;
       if (!s.running && poll) {
         clearInterval(poll); poll = null;
         if (doneReload) {
@@ -862,6 +863,14 @@
       + "гео-источники (domovita, edc) + аукционы + банки → обновление дашборда. "
       + "Гео-источники и телефоны kufar соберутся, только если VPN выключен (белорусский IP); "
       + "иначе шаг сам пропустится. Может занять много минут; окно можно закрыть, процесс идёт в фоне."));
+
+    btnAuc.addEventListener("click", () => start("auctions", "Обновление аукционов",
+      "Только аукционы: 14 площадок (mgcn, ipmtorgi, torgi.gov, «За 1 БВ» и др.) → свод → "
+      + "обновление дашборда. Обычно 10–20 минут; окно можно закрыть, процесс идёт в фоне."));
+
+    btnBanks.addEventListener("click", () => start("banks", "Обновление банков",
+      "Только недвижимость банков (Белинвест, Белагропром, ТК, Цептер и др.) + телефоны belretail "
+      + "(нужен бел. IP — иначе шаг пропустится) → обновление дашборда. Обычно несколько минут."));
 
     stop.addEventListener("click", async () => {
       await postJSON("/api/update/stop", {});

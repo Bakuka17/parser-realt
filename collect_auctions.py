@@ -23,7 +23,7 @@ HERE = Path(__file__).parent
 PY = sys.executable  # интерпретатор текущего venv
 
 # Порядок площадок (как в scheduled_run.sh). Сервер-HTML быстрые — раньше; тяжёлые — позже.
-SITES = ["mgcn", "ipmtorgi", "torgi24", "auction24", "gki", "bks",
+SITES = ["mgcn", "ipmtorgi", "torgi24", "auction24", "gki", "bks", "onebv",
          "eauction", "deloocenka", "konfiskat", "torgigov", "beltorgi", "fcon", "cpo"]
 
 

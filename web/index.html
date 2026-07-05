@@ -17,10 +17,20 @@
       </div>
     </div>
     <dl class="appbar__stats" id="stats" aria-label="Сводка по базе"></dl>
-    <button type="button" class="btn-update" id="btnUpdate" title="Собрать всё: объявления, гео-источники, аукционы, банки — и обновить дашборд">
-      <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
-      <span>Обновить</span>
-    </button>
+    <div class="appbar__actions">
+      <button type="button" class="btn-update" id="btnUpdate" title="Собрать всё: объявления, гео-источники, аукционы, банки — и обновить дашборд">
+        <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
+        <span>Обновить</span>
+      </button>
+      <button type="button" class="btn-update btn-update--alt" id="btnUpdateAuctions" title="Только аукционы: 14 площадок (вкл. «За 1 БВ») — и обновить дашборд">
+        <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
+        <span>Обновить аукционы</span>
+      </button>
+      <button type="button" class="btn-update btn-update--alt" id="btnUpdateBanks" title="Только банки + телефоны belretail — и обновить дашборд">
+        <span class="btn-update__ico" data-icon="refresh" aria-hidden="true"></span>
+        <span>Обновить банки</span>
+      </button>
+    </div>
   </header>
 
   <div class="modal" id="updModal" hidden>

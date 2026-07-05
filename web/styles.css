@@ -145,6 +145,7 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 .appbar__sub { margin: 1px 0 0; font-size: var(--fs-sm); color: var(--ink-3); }
 
 .appbar__stats { display: flex; gap: var(--s6); margin: 0; }
+.appbar__actions { display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center; }
 .appbar__stats > div { display: grid; gap: 1px; }
 .appbar__stats dt { font-size: var(--fs-xs); color: var(--ink-3); }
 .appbar__stats dd {
