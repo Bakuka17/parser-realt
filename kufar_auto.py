@@ -47,7 +47,10 @@ def main():
         return
     log(f"старт: остаток {rem}, гоню порцию {LIMIT}")
     py = sys.executable
-    r = subprocess.run([py, "kufar_phones.py", "--limit", str(LIMIT), "--headless", "--force"],
+    # --chrome-cookies обязателен с 14.06: kufar спрятал телефон за логин-стену,
+    # сессию берём из обычного Chrome (держать аккаунт залогиненным)
+    r = subprocess.run([py, "kufar_phones.py", "--limit", str(LIMIT), "--headless", "--force",
+                        "--chrome-cookies"],
                        cwd=str(HERE), capture_output=True, text=True)
     tail = "\n".join((r.stdout or "").strip().splitlines()[-6:])
     log("результат:\n" + tail + ("\n[stderr] " + r.stderr.strip()[-300:] if r.stderr.strip() else ""))
