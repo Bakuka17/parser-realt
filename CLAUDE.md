@@ -154,13 +154,15 @@ SPM-проект, открывается через `xed Package.swift`. min mac
   Automation открывает файл + подсказка про Настройки→Автоматизация), `GET /api/ping`
   (+CORS — страница с file:// сама находит сервер и redirect'ится), `POST /api/update` +
   `GET /api/update/status` + `POST /api/update/stop` — **обновление через `_stream()`**, тело POST
-  `{target}` (валидируется whitelist'ом). **ОДНА кнопка «Обновить» в шапке (01.07.2026) → target
-  `all`** = полный прогон через `_update_steps()`: `collect_realty.py` (realt/megapolis/kufar/
+  `{target}` (валидируется whitelist'ом). **ТРИ кнопки в шапке (05.07.2026, по просьбе Дениса):
+  «Обновить» → target `all`, «Обновить аукционы» → `auctions`, «Обновить банки» → `banks`**
+  (кнопки в `.appbar__actions`, вторичные — стиль `btn-update--alt`; при running дизейблятся все три).
+  target `all` = полный прогон через `_update_steps()`: `collect_realty.py` (realt/megapolis/kufar/
   **gohome/byrealty**) → `kufar_phones.py --limit KUFAR_PHONE_LIMIT` → **`collect_geo.py`
-  (domovita+edc, БЕЗ VPN)** → `collect_auctions.py` (10 площадок) → `collect_banks.py` +
+  (domovita+edc, БЕЗ VPN)** → `collect_auctions.py` (14 площадок, вкл. **onebv**) → `collect_banks.py` +
   `belretail_phones.py` → один ре-экспорт. Гео-шаг и kufar/belretail-телефоны сами пропустятся,
-  если IP не белорусский (под VPN соберут 0, остальное не ломают). Раздельные targets
-  (`realty`/`geo`/`auctions`/`banks`) whitelist оставлены (CLI/будущее), но в UI кнопка одна.
+  если IP не белорусский (под VPN соберут 0, остальное не ломают). Targets `realty`/`geo`
+  остаются CLI-only (в whitelist, без кнопок).
   Один общий JOB/status/stop — два сбора разом нельзя (оба пишут в xlsx). Всё со стримом лога.
   Каждый шаг — отдельный процесс → terminate чистый. После ре-экспорта — шаг прогрева
   фото-кэша (`prefetch_photos.py --limit 2000`, идемпотентно: новые объекты докачиваются).
@@ -207,9 +209,9 @@ SPM-проект, открывается через `xed Package.swift`. min mac
   `state.areaMin/areaMax` в app.js; объекты без площади скрываются при заданном диапазоне),
   клик-копирование телефона, карта (**Яндекс.Карты**: метка
   по коорд, иначе поиск по адресу), на карточке «Сохранить» (→«Сохранено»-ссылка) и «Excel»,
-  вверху ОДНА кнопка «Обновить» (01.07.2026: заменила «Обновить базу»/«аукционы»/«банки») —
-  одна модалка с логом, target `all` = весь прогон (realty+kufar → гео domovita/edc → аукционы →
-  банки+belretail → ре-экспорт; см. секцию про server.py `_update_steps`).
+  вверху ТРИ кнопки обновления (05.07.2026: «Обновить» = target `all`, «Обновить аукционы»,
+  «Обновить банки» — Денис попросил вернуть раздельные; 01.07–05.07 была одна) —
+  одна модалка с логом на всех (см. секцию про server.py `_update_steps`).
   Чекбоксы «С телефоном»/«С фото» УБРАНЫ (20.06, по просьбе Дениса).
   Кнопки карточки — в один ряд (Сохранить тянется,
   Excel/карта/сайт — иконки). Сегменты **Продажа / Аренда / Аукционы / Компании / Банки**.
@@ -338,13 +340,13 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ## Текущее состояние данных
 
 <!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->
-`commercial_realty.xlsx` = **21853 объектов** (обновлено 04.07.2026):
-- kufar.by: 10838
-- realt.by: 6176
-- megapolis-real.by: 2609
+`commercial_realty.xlsx` = **22056 объектов** (обновлено 04.07.2026):
+- kufar.by: 10960
+- realt.by: 6206
+- megapolis-real.by: 2620
 - domovita.by: 1530
 - bc.by: 386
-- gohome.by: 307
+- gohome.by: 347
 - byrealty.by: 7
 Телефоны: ~55%.
 <!-- AUTO-STATE-END -->
