@@ -340,7 +340,7 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ## Текущее состояние данных
 
 <!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->
-`commercial_realty.xlsx` = **22056 объектов** (обновлено 04.07.2026):
+`commercial_realty.xlsx` = **22056 объектов** (обновлено 05.07.2026):
 - kufar.by: 10960
 - realt.by: 6206
 - megapolis-real.by: 2620
