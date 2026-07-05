@@ -179,7 +179,12 @@ def remaining_count():
 
 
 def collect_targets(ws, limit, skip_hashes):
-    """(row, url, ph_col, hash) для kufar-строк без телефона, кроме известных «без тел.»."""
+    """(row, url, ph_col, hash) для kufar-строк без телефона, кроме известных «без тел.».
+
+    Идём С КОНЦА файла вверх: collect_realty дописывает свежие объявления в конец листа
+    (base + all_new), значит новые лиды — внизу. Приоритет им: дефицитная дневная квота
+    раскрытий kufar тратится сперва на свежие, остаток — на старый хвост (05.07.2026).
+    """
     hdr = [c.value for c in ws[2]]
     col = {str(h): i for i, h in enumerate(hdr) if h}
     ph, lk, sr = col.get("Телефон"), col.get("Ссылка"), col.get("Источник")
@@ -187,7 +192,7 @@ def collect_targets(ws, limit, skip_hashes):
     if ph is None or lk is None or sr is None:
         return []
     out = []
-    for r in range(3, ws.max_row + 1):
+    for r in range(ws.max_row, 2, -1):
         if "kufar" not in str(ws.cell(r, sr + 1).value or ""):
             continue
         if str(ws.cell(r, ph + 1).value or "").strip():

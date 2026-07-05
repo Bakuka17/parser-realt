@@ -83,23 +83,28 @@ def _stream(cmd):
 def _update_steps(target, py):
     """Список (заголовок, команда) для target. 'all' = полный прогон всех источников.
     Гео-источники (domovita/edc) и телефоны kufar/belretail сами пропустятся, если IP
-    не белорусский — под VPN просто соберут 0, остальное не ломают."""
-    steps = []
+    не белорусский — под VPN просто соберут 0, остальное не ломают.
+
+    Правило «свежие первыми» (05.07.2026): СНАЧАЛА весь сбор свежих объявлений
+    (realty/geo/auctions/banks), ПОТОМ доборы телефонов (kufar/belretail) — чтобы
+    дефицитная дневная квота раскрытий уходила на максимально свежую базу. Доборы
+    сами берут свежие строки первыми (kufar_phones.collect_targets идёт с конца)."""
+    collect, phones = [], []
     if target in ("all", "realty"):
-        steps.append(("Сбор объявлений (realt/megapolis/kufar/gohome/byrealty)",
-                      [py, "-u", "collect_realty.py"]))
+        collect.append(("Сбор объявлений (realt/megapolis/kufar/gohome/byrealty)",
+                        [py, "-u", "collect_realty.py"]))
         # --chrome-cookies: kufar спрятал телефон за логин, берём сессию из Chrome
-        steps.append((f"Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен бел. IP)",
-                      [py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"]))
+        phones.append((f"Добор телефонов kufar (до {KUFAR_PHONE_LIMIT}; нужен бел. IP)",
+                       [py, "-u", "kufar_phones.py", "--limit", str(KUFAR_PHONE_LIMIT), "--chrome-cookies"]))
     if target in ("all", "geo"):
-        steps.append(("Гео-источники domovita + edc (нужен бел. IP — VPN выключен)",
-                      [py, "-u", "collect_geo.py"]))
+        collect.append(("Гео-источники domovita + edc (нужен бел. IP — VPN выключен)",
+                        [py, "-u", "collect_geo.py"]))
     if target in ("all", "auctions"):
-        steps.append(("Сбор аукционов (10 площадок)", [py, "-u", "collect_auctions.py"]))
+        collect.append(("Сбор аукционов (10 площадок)", [py, "-u", "collect_auctions.py"]))
     if target in ("all", "banks"):
-        steps.append(("Недвижимость банков", [py, "-u", "collect_banks.py"]))
-        steps.append(("Телефоны компаний belretail (нужен бел. IP)", [py, "-u", "belretail_phones.py"]))
-    return steps
+        collect.append(("Недвижимость банков", [py, "-u", "collect_banks.py"]))
+        phones.append(("Телефоны компаний belretail (нужен бел. IP)", [py, "-u", "belretail_phones.py"]))
+    return collect + phones           # весь сбор свежих → потом доборы телефонов
 
 
 def _run_update(target="all"):

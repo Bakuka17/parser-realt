@@ -157,12 +157,15 @@ SPM-проект, открывается через `xed Package.swift`. min mac
   `{target}` (валидируется whitelist'ом). **ТРИ кнопки в шапке (05.07.2026, по просьбе Дениса):
   «Обновить» → target `all`, «Обновить аукционы» → `auctions`, «Обновить банки» → `banks`**
   (кнопки в `.appbar__actions`, вторичные — стиль `btn-update--alt`; при running дизейблятся все три).
-  target `all` = полный прогон через `_update_steps()`: `collect_realty.py` (realt/megapolis/kufar/
-  **gohome/byrealty**) → `kufar_phones.py --limit KUFAR_PHONE_LIMIT` → **`collect_geo.py`
-  (domovita+edc, БЕЗ VPN)** → `collect_auctions.py` (14 площадок, вкл. **onebv**) → `collect_banks.py` +
-  `belretail_phones.py` → один ре-экспорт. Гео-шаг и kufar/belretail-телефоны сами пропустятся,
-  если IP не белорусский (под VPN соберут 0, остальное не ломают). Targets `realty`/`geo`
-  остаются CLI-only (в whitelist, без кнопок).
+  target `all` = полный прогон через `_update_steps()`. **Правило «свежие первыми»
+  (05.07.2026): СНАЧАЛА весь сбор свежих объявлений, ПОТОМ доборы телефонов** — квота
+  раскрытий kufar дефицитна, пусть уходит на максимально свежую базу. Порядок: `collect_realty.py`
+  (realt/megapolis/kufar/**gohome/byrealty**) → **`collect_geo.py` (domovita+edc, БЕЗ VPN)** →
+  `collect_auctions.py` (14 площадок, вкл. **onebv**) → `collect_banks.py` → **[доборы:]**
+  `kufar_phones.py --limit KUFAR_PHONE_LIMIT` → `belretail_phones.py` → один ре-экспорт.
+  (`_update_steps` копит `collect` и `phones` раздельно, возвращает `collect + phones`.)
+  Гео-шаг и kufar/belretail-телефоны сами пропустятся, если IP не белорусский (под VPN
+  соберут 0, остальное не ломают). Targets `realty`/`geo` остаются CLI-only (в whitelist, без кнопок).
   Один общий JOB/status/stop — два сбора разом нельзя (оба пишут в xlsx). Всё со стримом лога.
   Каждый шаг — отдельный процесс → terminate чистый. После ре-экспорта — шаг прогрева
   фото-кэша (`prefetch_photos.py --limit 2000`, идемпотентно: новые объекты докачиваются).
@@ -414,10 +417,19 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
      порциями (150-200) с перерывами.
    • **Автодобор (13.06):** `kufar_auto.py` + launchd `com.realty.kufar-autophones.plist`
      (StartInterval 4ч) + лаунчеры `Автодобор-вкл/выкл.command`. Каждый заход: guard бел. IP
-     (не BY → пропуск, лог `logs/kufar_auto.log`) → `remaining_count()` (0 → «заполнено», стоп)
-     → порция 150 (`--headless --force`) → ре-экспорт. Реально работает ТОЛЬКО при Psiphon OFF.
-     ⚠ headless для kufar reCAPTCHA — ✅ ПРОВЕРЕН вживую 05.07 (21/25 = 84%, как с окном),
-     `--headless` в автодоборе оставлен.
+     (не BY → пропуск, лог `logs/kufar_auto.log`) → **шаг 1: сбор свежих объявлений
+     (`collect_realty.py --sources kufar`)** → `remaining_count()` (0 → «заполнено», стоп)
+     → шаг 2: порция 150 (`--headless --force`) → ре-экспорт. Реально работает ТОЛЬКО при
+     Psiphon OFF. ⚠ headless для kufar reCAPTCHA — ✅ ПРОВЕРЕН вживую 05.07 (21/25 = 84%,
+     как с окном), `--headless` в автодоборе оставлен.
+   • **«Свежие первыми» (05.07.2026, просьба Дениса):** дневная квота kufar дефицитна →
+     заход сперва собирает НОВЫЕ объявления (`collect_realty --sources kufar` — new-строки
+     без телефона дописываются в КОНЕЦ базы: `write_excel(base + all_new)`), а `collect_targets`
+     обходит лист **С КОНЦА вверх** (`range(ws.max_row, 2, -1)`) → свежие лиды добираются
+     первыми, остаток квоты уходит на старый хвост. Встроено в ОБА захода (`kufar_auto.py`
+     шаг 1/2 и `Добор kufar.command` шаг 0/3). Проверено на живой базе: targets идут
+     6537→6536→… (с конца), а не 3→4→… . ⚠ read_only-openpyxl для тешка НЕ годится
+     (random-access `ws.cell` дико медленный) — грузить в память, как реальный kufar_phones.
    • **05.07.2026: добор возобновлён и автодобор ВКЛЮЧЁН.** ⚠ Грабля: `kufar_auto.py`
      писался 13.06 — ДО логин-стены 14.06 — и звал добор БЕЗ `--chrome-cookies` (дал бы
      сплошные no_response); починен. Новый лаунчер **`Добор kufar.command`** (Денис, БЕЗ VPN,
@@ -429,6 +441,18 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
      под VPN заход скипается сам, лог `logs/kufar_auto.log`). Остаток 9032, кэш
      «телефона нет» = 193. Темп ≈ 97/заход → полный добор ~месяц фоновых заходов
      (реально быстрее в дни, когда VPN подолгу выключен).
+   • **Замер интервала (05.07, ЗАВЕРШЁН → вернул 4ч):** гоняли StartInterval 1ч, каждый
+     заход писал строку в `logs/kufar_stats.csv` (время,порция,добыто,no_response,no_button,
+     throttled,error,бан_стоп,минут,остаток — save_stats в kufar_auto.py, парсит отчёт
+     kufar_phones). **Итог дня:** утром ручной `Добор kufar.command` дал +97 (смоук 21/25),
+     потом throttle; дневные АВТО-заходы почти пусты — 12:50 (+4ч после утра) **добыто 5**,
+     13:58 (+1ч) **добыто 1**, оба умерли по BAN_STREAK через ~15 объектов (12 no_response
+     подряд). **Вывод: лимит kufar ДНЕВНОЙ на аккаунт/IP, а не «пауза N часов».** Утренний
+     сильный заход выбирает квоту → дальше в этот день почти ноль, сколько ни долби → частый
+     интервал бесполезен (только держит троттл-стрик тёплым). **Постоянный интервал вернул на
+     4ч (14400с)** в plist + `~/Library/LaunchAgents` + reload. Реальный рабочий паттерн =
+     ОДИН сильный заход/день утренним ручным `Добор kufar.command`; автодобор launchd = фоновая
+     подчистка, когда VPN подолгу выключен. ⚠ launchd НЕ стреляет, пока мак спит.
 4. **Kufar глубже max_pages=100** — поднять лимит, если нужна полная аренда.
 
 ## Идеи (что ещё НЕ сделано)
