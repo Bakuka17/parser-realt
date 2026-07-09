@@ -428,22 +428,24 @@ def parse_listing_text(text: str, deal: str, type_: str, url: str) -> dict:
     t = text.replace("\xa0", " ").replace("\u202f", " ").replace("\u2009", " ")
     price_total = ""
     price_per_m = ""
-    m = re.search(r"(?<![/\.])(?:от\s+)?([\d\s]{2,})\s*р\.\s*(?![/м])", t)
+    # ponytail: цена = ОДНО число (группы по 3 справа) или слитные цифры.
+    # [\d\s]{2,} жадно клеил соседнее число через пробел («7 18 309» = этаж 7 + 18 309).
+    m = re.search(r"(?<![/\.])(?:от\s+)?(\d{1,3}(?:\s\d{3})+|\d+)\s*р\.\s*(?![/м])", t)
     if m:
         v = re.sub(r"\s+", " ", m.group(1)).strip()
         if any(c.isdigit() for c in v):
             price_total = v + " р."
-    m = re.search(r"(?:от\s+)?([\d\s]{2,})\s*р\.\s*/\s*м²", t)
+    m = re.search(r"(?:от\s+)?(\d{1,3}(?:\s\d{3})+|\d+)\s*р\.\s*/\s*м²", t)
     if m:
         v = re.sub(r"\s+", " ", m.group(1)).strip()
         if any(c.isdigit() for c in v):
             price_per_m = v + " р./м²"
-    m = re.search(r"≈\s*(?:от\s+)?([\d\s]{2,})\s*\$\s*(?![/м])", t)
+    m = re.search(r"≈\s*(?:от\s+)?(\d{1,3}(?:\s\d{3})+|\d+)\s*\$\s*(?![/м])", t)
     if m:
         v = re.sub(r"\s+", " ", m.group(1)).strip()
         if any(c.isdigit() for c in v):
             price_total = (price_total + " / " if price_total else "") + v + " $"
-    m = re.search(r"≈\s*(?:от\s+)?([\d\s]{2,})\s*\$\s*/\s*м²", t)
+    m = re.search(r"≈\s*(?:от\s+)?(\d{1,3}(?:\s\d{3})+|\d+)\s*\$\s*/\s*м²", t)
     if m:
         v = re.sub(r"\s+", " ", m.group(1)).strip()
         if any(c.isdigit() for c in v):
