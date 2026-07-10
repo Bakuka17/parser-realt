@@ -934,7 +934,8 @@ def load_prev_hashes(path: Path) -> dict[str, set[str]]:
                 result[sname] = hashes
         wb.close()
     except Exception as e:
-        print(f"  ⚠ не смог прочитать предыдущую выгрузку ({e})")
+        # см. load_prev_db: пустой результат здесь снимает защёлку в write_excel
+        raise RuntimeError(f"не смог прочитать предыдущую выгрузку {path}: {e}") from e
     return result
 
 
@@ -982,18 +983,37 @@ def load_prev_db(path: Path) -> tuple[dict[str, dict], Optional[date]]:
                 db[normalize_url(str(url))] = rec
         wb.close()
     except Exception as e:
-        print(f"  ⚠ не смог прочитать БД из {path}: {e}")
+        # Файл есть, но не читается → НЕЛЬЗЯ возвращать пустую БД: вызывающий код
+        # запишет `prev_db + new` и молча сотрёт базу (авария 09.07.2026).
+        raise RuntimeError(
+            f"не смог прочитать существующую БД {path}: {e}\n"
+            "   Запись ОТМЕНЕНА, чтобы не затереть базу. Закройте файл в Excel, "
+            "проверьте, не пишет ли в него другой процесс, и повторите."
+        ) from e
     return db, last_run
+
+
+SHRINK_LIMIT = 0.5  # писать меньше половины прежней базы можно только с allow_shrink
 
 
 def write_excel(
     items: list,
     output_path: Path,
     prev_hashes: Optional[dict[str, set[str]]] = None,
+    allow_shrink: bool = False,
 ) -> None:
     # prev_hashes можно передать снаружи (для чекпойнтов), иначе читаем из файла.
     if prev_hashes is None:
         prev_hashes = load_prev_hashes(output_path)
+    # Защёлка: prev_hashes — снимок базы ДО прогона. Резкое схлопывание = авария
+    # (сорванное чтение, упавший источник), а не законная перезапись.
+    prev_n = sum(len(h) for h in prev_hashes.values())
+    if not allow_shrink and prev_n and len(items) < prev_n * SHRINK_LIMIT:
+        raise RuntimeError(
+            f"отказ записи {output_path}: было {prev_n} объектов, пишем {len(items)}.\n"
+            "   Похоже на затирание базы. Если перепрогон намеренный — --full "
+            "(или allow_shrink=True)."
+        )
     new_fill = PatternFill("solid", fgColor="FFF2A8")  # мягкий жёлтый для новых строк
     wb = Workbook()
     wb.remove(wb.active)

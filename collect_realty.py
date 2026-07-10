@@ -240,7 +240,12 @@ def main() -> None:
                 _prior = list(all_new)  # новые из уже отработавших источников
 
                 def _realt_ckpt(done_partial, _base=_base, _prior=_prior):
-                    R.write_excel(_base + _prior + done_partial, cfg.out, prev_hashes=snapshot)
+                    R.write_excel(
+                        _base + _prior + done_partial,
+                        cfg.out,
+                        prev_hashes=snapshot,
+                        allow_shrink=cfg.full,
+                    )
 
                 got = collect_realt(prev_urls, last_run, cfg, on_checkpoint=_realt_ckpt)
             else:
@@ -251,7 +256,7 @@ def main() -> None:
             for it in got:
                 prev_urls.add(R.normalize_url(it["Ссылка"]))
             base = [] if cfg.full else list(prev_db.values())
-            R.write_excel(base + all_new, cfg.out, prev_hashes=snapshot)
+            R.write_excel(base + all_new, cfg.out, prev_hashes=snapshot, allow_shrink=cfg.full)
             print(f"  💾 чекпойнт после {src}: всего новых {len(all_new)}")
         except Exception as e:  # noqa: BLE001
             summary[src] = f"✖ ОШИБКА: {type(e).__name__}: {e}"
@@ -259,7 +264,7 @@ def main() -> None:
 
     base = [] if cfg.full else list(prev_db.values())
     final = base + all_new
-    R.write_excel(final, cfg.out, prev_hashes=snapshot)
+    R.write_excel(final, cfg.out, prev_hashes=snapshot, allow_shrink=cfg.full)
     # вкладка «Аукционы» в тот же файл (realty пересоздаёт файл → восстанавливаем её здесь)
     try:
         import embed_auctions

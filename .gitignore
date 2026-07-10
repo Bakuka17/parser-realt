@@ -45,3 +45,6 @@ price_history.json
 bank_geo_out/
 bank_geo_out2/
 probe_1bv2/
+
+# спасательные снимки базы (локальные, не в git)
+_rescue_*/
