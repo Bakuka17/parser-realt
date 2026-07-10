@@ -86,7 +86,8 @@ def update_memory_and_backup(out_file: Path, label: str = "collect_realty") -> N
             BACKUP_DIR.mkdir(exist_ok=True)
             n = 0
             for f in (list(HERE.glob("*.py")) + list(HERE.glob("*.xlsx"))
-                      + list(HERE.glob("*.command")) + list(HERE.glob("*.json"))):  # json: история цен и пр.
+                      + list(HERE.glob("*.command")) + list(HERE.glob("*.json"))
+                      + list(HERE.glob("*.jsonl"))):  # json: история цен; jsonl: журнал телефонов
                 if f.name.startswith("~$"):
                     continue
                 shutil.copy2(f, BACKUP_DIR / f.name)

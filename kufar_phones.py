@@ -28,6 +28,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from playwright.async_api import async_playwright
 
+import phones_log
 import realty_parser_v8 as R
 
 # Маскировка автоматизации (navigator.webdriver и пр.): без неё reCAPTCHA v3 у kufar
@@ -370,6 +371,8 @@ async def main():
 
             reasons[reason] += 1
             if phone:
+                # в журнал ДО xlsx: номер стоит месяца добора, xlsx пересобирается за час
+                phones_log.append(h, phone, url, "kufar.by")
                 wb[sheet].cell(row=row, column=ph_col).value = phone
                 got += 1
                 bad_streak = 0
