@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import hashlib
 import random
 import re
@@ -994,6 +995,28 @@ def load_prev_db(path: Path) -> tuple[dict[str, dict], Optional[date]]:
 
 
 SHRINK_LIMIT = 0.5  # писать меньше половины прежней базы можно только с allow_shrink
+
+
+_lock_fh = None  # держим fd открытым: ОС снимет flock сама при выходе процесса
+
+
+def acquire_db_lock(path: Path) -> None:
+    """Один пишущий в базу за раз. Второй процесс падает сразу, а не портит файл.
+
+    Причина: 09.07.2026 автодобор kufar (launchd) и «Обновить» из дашборда писали
+    в один xlsx одновременно → сорванное чтение → база стёрта.
+    Замок держится до конца процесса; при kill/краше ядро освобождает его само.
+    """
+    global _lock_fh
+    lock = path.with_suffix(".lock")
+    _lock_fh = open(lock, "w")
+    try:
+        fcntl.flock(_lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        raise RuntimeError(
+            f"база {path.name} уже занята другим процессом (замок {lock.name}).\n"
+            "   Дождитесь его завершения — одновременная запись стирает базу."
+        ) from None
 
 
 def write_excel(

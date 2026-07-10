@@ -28,6 +28,8 @@ from pathlib import Path
 from openpyxl import load_workbook
 from playwright.async_api import async_playwright
 
+import realty_parser_v8 as R
+
 # Маскировка автоматизации (navigator.webdriver и пр.): без неё reCAPTCHA v3 у kufar
 # видит робота и молча НЕ отдаёт номер. Тот же стелс, что в realty_parser_v8.
 STEALTH_FN = None
@@ -307,6 +309,8 @@ async def main():
 
     if not guard_belarus_ip(cfg.force):
         return
+
+    R.acquire_db_lock(HERE / "commercial_realty.xlsx")
 
     if (HERE / "~$commercial_realty.xlsx").exists():
         print("⚠️  commercial_realty.xlsx открыт в Excel — закройте файл и повторите.")

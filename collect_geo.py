@@ -78,6 +78,7 @@ def main() -> None:
     p.add_argument("--no-details", action="store_true", help="domovita без телефонов")
     cfg = p.parse_args()
     cfg.out = cfg.out.expanduser().resolve()
+    R.acquire_db_lock(cfg.out)
     sources = [s.strip() for s in cfg.sources.split(",") if s.strip() in RUNNERS]
 
     cc = exit_country()

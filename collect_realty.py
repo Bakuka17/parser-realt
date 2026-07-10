@@ -208,6 +208,7 @@ def main() -> None:
     p.add_argument("--debug", action="store_true", help="realt: писать debug_cards.txt")
     cfg = p.parse_args()
     cfg.out = cfg.out.expanduser().resolve()
+    R.acquire_db_lock(cfg.out)
 
     sources = [s.strip() for s in cfg.sources.split(",") if s.strip() in COLLECTORS]
     if not sources:
@@ -271,6 +272,12 @@ def main() -> None:
         embed_auctions.embed(main=cfg.out)
     except Exception as e:  # noqa: BLE001
         print(f"  ⚠ вкладка «Аукционы» не встроена: {e}")
+    # дубль базы — только если основа жива и не схлопнулась (см. snapshot_db.py)
+    try:
+        import snapshot_db
+        snapshot_db.update()
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠ дубль не обновлён: {e}")
     print(f"\n{'='*60}\n📦 ИТОГ: {len(final)} объектов (новых: {len(all_new)}, из БД: {len(base)})")
     for src in sources:
         print(f"   {src}: {summary.get(src, '—')}")
