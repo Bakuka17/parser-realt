@@ -392,14 +392,14 @@ async def main():
                 break
 
             if got and got % CHECKPOINT_EVERY == 0:
-                wb.save(MAIN_XLSX)
+                R.atomic_save(wb, MAIN_XLSX)
                 print(f"   💾 чекпойнт: сохранено (+{got} номеров)")
 
             await page.wait_for_timeout(random.randint(2500, 6000))  # пауза, как человек
 
         await ctx.close()
 
-    wb.save(MAIN_XLSX)
+    R.atomic_save(wb, MAIN_XLSX)
     save_nophone(skip)
     if stop_note:
         print(f"\n⛔ {stop_note}")

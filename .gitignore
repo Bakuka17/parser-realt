@@ -48,3 +48,6 @@ probe_1bv2/
 
 # спасательные снимки базы (локальные, не в git)
 _rescue_*/
+
+# замок базы (fcntl.flock, создаётся на время записи)
+commercial_realty.lock

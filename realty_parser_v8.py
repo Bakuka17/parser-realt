@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import fcntl
 import hashlib
+import os
 import random
 import re
 from dataclasses import dataclass
@@ -997,6 +998,22 @@ def load_prev_db(path: Path) -> tuple[dict[str, dict], Optional[date]]:
 SHRINK_LIMIT = 0.5  # писать меньше половины прежней базы можно только с allow_shrink
 
 
+def atomic_save(wb, output_path: Path) -> None:
+    """Сохранение, переживающее внезапную смерть процесса.
+
+    xlsx — это zip: `wb.save(боевой_файл)` при kill/обесточивании посреди записи
+    оставляет обрезанный архив, который уже не прочесть (авария 09.07.2026).
+    Пишем в сосед-tmp, дожимаем на диск (fsync), затем os.replace — он атомарен:
+    в любой момент на месте базы лежит либо целая старая, либо целая новая.
+    Оборванный tmp безвреден и будет перезаписан следующим прогоном.
+    """
+    tmp = output_path.with_name(output_path.name + ".tmp")
+    wb.save(tmp)
+    with open(tmp, "rb") as fh:
+        os.fsync(fh.fileno())  # без fsync os.replace может опередить данные при потере питания
+    os.replace(tmp, output_path)
+
+
 _lock_fh = None  # держим fd открытым: ОС снимет flock сама при выходе процесса
 
 
@@ -1187,7 +1204,7 @@ def write_excel(
     summary.column_dimensions["A"].width = 24
     for c in ["B", "C", "D"]:
         summary.column_dimensions[c].width = 14
-    wb.save(output_path)
+    atomic_save(wb, output_path)
     msg = f"\n✅ Сохранено: {output_path}\n   Всего: {len(items)} | С телефонами: {phones_count}"
     if prev_hashes:
         msg += f" | 🆕 новых: {sum(new_counts.values())}"

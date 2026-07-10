@@ -47,6 +47,26 @@ try:
     raise AssertionError("битый файл прочитан как пустая БД — авария повторится")
 except RuntimeError as e:
     assert "не смог прочитать" in str(e), e
-    print("5/5 битый файл -> RuntimeError, запись отменена — ок")
+    print("5/6 битый файл -> RuntimeError, запись отменена — ок")
 
-print("\nвсе 5 проверок пройдены")
+# 6. Процесс убит ПОСРЕДИ сохранения (закрыли программу / выключили свет).
+#    До atomic_save это оставляло обрезанный zip → база не читалась.
+live = tmp / "live.xlsx"
+R.write_excel([item(i) for i in range(50)], live)
+before = live.read_bytes()
+
+real_replace = R.os.replace
+R.os.replace = lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt("убит посреди записи"))
+try:
+    R.write_excel([item(i) for i in range(60)], live, prev_hashes=R.load_prev_hashes(live))
+    raise AssertionError("обрыв не сымитировался")
+except KeyboardInterrupt:
+    pass
+finally:
+    R.os.replace = real_replace
+
+assert live.read_bytes() == before, "база испорчена обрывом записи"
+assert sum(len(v) for v in R.load_prev_hashes(live).values()) == 50, "база не читается после обрыва"
+print("6/6 смерть процесса посреди записи — старая база цела и читается — ок")
+
+print("\nвсе 6 проверок пройдены")
