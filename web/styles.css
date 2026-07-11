@@ -5,33 +5,33 @@
    ============================================================ */
 
 :root {
-  /* surfaces */
-  --bg:            oklch(0.985 0.003 255);
-  --surface:       oklch(1 0 0);
-  --surface-2:     oklch(0.966 0.004 255);
-  --surface-3:     oklch(0.945 0.005 255);
-  --border:        oklch(0.905 0.006 255);
-  --border-strong: oklch(0.83 0.012 255);
+  /* surfaces — тёплый чёрный (единая тема: чёрно-золотой люкс) */
+  --bg:            oklch(0.155 0.008 80);
+  --surface:       oklch(0.205 0.010 80);
+  --surface-2:     oklch(0.180 0.009 80);
+  --surface-3:     oklch(0.250 0.013 80);
+  --border:        oklch(0.305 0.022 85);
+  --border-strong: oklch(0.415 0.038 85);
 
-  /* ink */
-  --ink:   oklch(0.27 0.021 262);
-  --ink-2: oklch(0.45 0.018 262);
-  --ink-3: oklch(0.55 0.014 262);
+  /* ink — тёплый белый */
+  --ink:   oklch(0.950 0.012 90);
+  --ink-2: oklch(0.780 0.020 88);
+  --ink-3: oklch(0.630 0.022 86);
 
-  /* accent (indigo) — selection, focus, primary */
-  --accent:      oklch(0.55 0.158 264);
-  --accent-press:oklch(0.49 0.158 264);
-  --accent-ink:  oklch(0.99 0.01 264);
-  --accent-weak: oklch(0.955 0.028 264);
+  /* accent (gold) — selection, focus, primary */
+  --accent:      oklch(0.780 0.130 85);
+  --accent-press:oklch(0.840 0.130 88);
+  --accent-ink:  oklch(0.200 0.040 80);
+  --accent-weak: oklch(0.330 0.062 85);
 
   /* semantic */
-  --call:        oklch(0.585 0.13 152);
-  --call-press:  oklch(0.53 0.13 152);
-  --sale:        oklch(0.56 0.13 52);   /* продажа — янтарь */
-  --sale-bg:     oklch(0.95 0.035 70);
-  --rent:        oklch(0.5 0.11 248);   /* аренда — синий */
-  --rent-bg:     oklch(0.95 0.03 248);
-  --focus:       oklch(0.6 0.18 264);
+  --call:        oklch(0.700 0.130 152);
+  --call-press:  oklch(0.760 0.130 152);
+  --sale:        oklch(0.790 0.125 70);  /* продажа — янтарь */
+  --sale-bg:     oklch(0.300 0.052 70);
+  --rent:        oklch(0.740 0.095 248); /* аренда — синий */
+  --rent-bg:     oklch(0.290 0.048 248);
+  --focus:       oklch(0.800 0.140 85);
 
   /* type scale (fixed rem, ratio ~1.2) */
   --fs-xs: 0.75rem;     /* 12 */
@@ -48,8 +48,8 @@
   --r-sm: 6px; --r: 9px; --r-lg: 12px; --r-pill: 999px;
 
   /* elevation (single, restrained — never paired with heavy borders) */
-  --shadow-1: 0 1px 2px oklch(0.27 0.02 262 / 0.06);
-  --shadow-2: 0 4px 14px oklch(0.27 0.02 262 / 0.10);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-2: 0 6px 18px oklch(0 0 0 / 0.5);
 
   /* z-scale (semantic, never 9999) */
   --z-sticky: 10;
@@ -63,36 +63,8 @@
   --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.3 3.3L13 4' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg:            oklch(0.195 0.012 262);
-    --surface:       oklch(0.243 0.014 262);
-    --surface-2:     oklch(0.223 0.013 262);
-    --surface-3:     oklch(0.285 0.015 262);
-    --border:        oklch(0.32 0.014 262);
-    --border-strong: oklch(0.42 0.018 262);
-
-    --ink:   oklch(0.955 0.008 262);
-    --ink-2: oklch(0.79 0.012 262);
-    --ink-3: oklch(0.66 0.013 262);
-
-    --accent:      oklch(0.72 0.14 264);
-    --accent-press:oklch(0.78 0.14 264);
-    --accent-ink:  oklch(0.18 0.02 264);
-    --accent-weak: oklch(0.3 0.05 264);
-
-    --call:       oklch(0.7 0.14 152);
-    --call-press: oklch(0.76 0.14 152);
-    --sale:       oklch(0.78 0.12 70);
-    --sale-bg:    oklch(0.32 0.05 70);
-    --rent:       oklch(0.74 0.1 248);
-    --rent-bg:    oklch(0.3 0.05 248);
-    --focus:      oklch(0.75 0.15 264);
-
-    --shadow-1: 0 1px 2px oklch(0 0 0 / 0.3);
-    --shadow-2: 0 6px 18px oklch(0 0 0 / 0.45);
-  }
-}
+/* чёрно-золотая тема единая — отдельного dark-блока нет (тема и есть тёмная) */
+:root { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }  /* класс с display перебивает UA [hidden] — чиним */
@@ -333,7 +305,7 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 .badge--sale { background: var(--sale-bg); color: var(--sale); }
 .badge--rent { background: var(--rent-bg); color: var(--rent); }
 .badge--auction { background: var(--accent-weak); color: var(--accent); }
-.badge--bank { background: oklch(0.93 0.05 150); color: oklch(0.42 0.12 150); }
+.badge--bank { background: oklch(0.30 0.05 150); color: oklch(0.76 0.12 150); }
 
 .lead__body { padding: var(--s3) var(--s4) var(--s2); display: grid; gap: 6px; }
 .lead__top {
@@ -486,7 +458,7 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 .modal {
   position: fixed; inset: 0; z-index: var(--z-toast);
   display: grid; place-items: center; padding: var(--s4);
-  background: oklch(0.2 0.02 262 / 0.45);
+  background: oklch(0.06 0.005 80 / 0.6);
   -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
 }
 .modal__card {
