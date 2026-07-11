@@ -1,5 +1,5 @@
 /* ============================================================
-   Консоль обзвона — design system
+   Axis — design system
    Register: product. Restrained OKLCH palette, system sans,
    fixed rem scale, dense, full state coverage.
    ============================================================ */
@@ -136,12 +136,21 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 }
 .appbar__id { display: flex; align-items: center; gap: var(--s3); }
 .appbar__mark {
-  width: 30px; height: 30px; border-radius: 8px; flex: none;
-  background:
-    linear-gradient(180deg, var(--accent), var(--accent-press));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25);
+  width: 52px; height: 52px; border-radius: 12px; flex: none;  /* логотип-картинка web/logo.png */
+  background: #0d0d0d center / cover no-repeat;
+  background-image: url("logo.png");
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06);
 }
-.appbar__title { font-size: var(--fs-lg); font-weight: 650; letter-spacing: -0.01em; }
+.appbar__title {
+  font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;  /* округлые углы букв */
+  font-weight: 800; font-size: 1.95rem; letter-spacing: 0.01em; line-height: 1.05;
+  background: linear-gradient(180deg, #f6dd8b 0%, #d4af37 45%, #b8860b 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px #0d0d0d;      /* чёрный кантик */
+  paint-order: stroke fill;              /* обводка ПОЗАДИ заливки → ровный кант, золото не съедается */
+  color: #b8860b;  /* fallback */
+}
 .appbar__sub { margin: 1px 0 0; font-size: var(--fs-sm); color: var(--ink-3); }
 
 .appbar__stats { display: flex; gap: var(--s6); margin: 0; }
@@ -539,6 +548,7 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 .ana-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s3); font-size: var(--fs-sm); color: var(--ink-2); }
 .ana-an { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ana-addr { font-size: var(--fs-xs); color: var(--ink-3); }
+.ana-near { color: var(--accent); font-weight: 600; }
 .ana-list li b { color: var(--ink); }
 .ana-list a { color: var(--accent); text-decoration: none; }
 .ana-list a:hover { text-decoration: underline; }

@@ -80,7 +80,7 @@
 
   // ---------- state ----------
   const state = { q: "", deals: new Set(), city: new Set(), type: new Set(), source: new Set(),
-                  sort: "date", auctionPast: false, areaMin: null, areaMax: null };
+                  sort: "date", auctionPast: false, areaMin: null, areaMax: null, ownersOnly: false };
   let filtered = DATA;
   let shown = 0;
   const savedSet = new Set(); // хэши уже сохранённых (сервер знает; кнопка сразу зелёная)
@@ -154,6 +154,8 @@
       if (state.areaMax != null && !(x.area <= state.areaMax)) return false;
       // аукционы: по умолчанию скрываем прошедшие (дата уже прошла)
       if (x.deal === "auction" && !state.auctionPast && x.future === false) return false;
+      // «Только собственники»: прячем агентства (who='agency'). owner/gov/'' (не размечено) — показываем.
+      if (state.ownersOnly && x.who === "agency") return false;
       if (q) {
         const hay = (x.addr + " " + x.city + " " + x.type + " " + x.phone + " " +
                      x.source + " " + x.desc + " " + (x.title || "") + " " +
@@ -437,7 +439,7 @@
     let same = comps(x, x.deal, tol);
     if (same.length < 6) { tol = 0.5; same = comps(x, x.deal, tol); }  // мало аналогов → шире допуск
     const near = x.coords ? same.filter((o) => {
-      const d = kmDist(x.coords, o.coords); return d != null && d <= 2;
+      const d = kmDist(x.coords, o.coords); return d != null && d <= 3;
     }) : [];
     let rate = null, gross = null, noi = null, capRate = null, payback = null, rentN = 0;
     if (x.deal === "sale" && x.usd && x.area) {       // доходность: ставка из похожих АРЕНДНЫХ
@@ -579,15 +581,16 @@
     const perM2 = sane ? ` · ${fmtCur(ppmSelf2, tot.cur)}${unit}` : "";
     const rows = [
       `<div class="ana-row"><span>Цена этого объекта</span><b>${esc(totalStr)}${perM2}</b></div>`,
-      `<div class="ana-row"><span>Медиана по городу (${esc(x.city)}) · ${a.same.length} похож.${a.tol > 0.25 ? " (площадь ±50%)" : ""}</span>
-        <b>${money(a.medCity)}${unit} ${pos(a.ppmSelf, a.medCity)}</b></div>`,
     ];
+    if (a.near.length) rows.push(
+      `<div class="ana-row"><span>Ближайшие (≤3 км) · ${a.near.length}</span>
+        <b>${money(a.medNear)}${unit} ${pos(a.ppmSelf, a.medNear)}</b></div>`);
+    rows.push(
+      `<div class="ana-row"><span>По всему городу (${esc(x.city)}) · ${a.same.length} похож.${a.tol > 0.25 ? " (площадь ±50%)" : ""}</span>
+        <b>${money(a.medCity)}${unit} ${pos(a.ppmSelf, a.medCity)}</b></div>`);
     if (a.p25 != null && a.p75 != null && a.same.length >= 4) rows.push(
       `<div class="ana-row"><span>Рыночная вилка (25–75% аналогов)</span>
         <b>${money(a.p25)}–${money(a.p75)}${unit}</b></div>`);
-    if (a.near.length) rows.push(
-      `<div class="ana-row"><span>Рядом (≤2 км) · ${a.near.length}</span>
-        <b>${money(a.medNear)}${unit} ${pos(a.ppmSelf, a.medNear)}</b></div>`);
     if (x.deal === "sale" && tot) rows.push(
       `<div class="ana-row"><span>Ориентир с торгом (−${Math.round(TORG * 100)}%)</span>
         <b>${fmtCur(tot.v * (1 - TORG), tot.cur)}</b></div>`);
@@ -614,14 +617,24 @@
       <div class="ana-tenants">${esc(tenantHint(x.type))}</div>
       <div id="tenantsHint"><div class="ana-note">базовая подсказка по типу; уточнения по локации появятся ниже</div></div></div>`;
 
-    const top = a.same.slice()
-      .sort((p, q) => Math.abs(p.area - x.area) - Math.abs(q.area - x.area)).slice(0, 5);
+    // список аналогов: СНАЧАЛА ближайшие (≤2 км, по расстоянию), потом остальные по городу
+    const distTo = (o) => (x.coords && o.coords) ? kmDist(x.coords, o.coords) : null;
+    const nearSet = new Set(a.near.map((o) => o.hash));
+    const top = a.same.slice().sort((p, q) => {
+      const pn = nearSet.has(p.hash), qn = nearSet.has(q.hash);
+      if (pn !== qn) return pn ? -1 : 1;                                    // ближайшие — вперёд
+      if (pn && qn) { const d = (distTo(p) ?? 9) - (distTo(q) ?? 9); if (d) return d; }  // среди них — по расстоянию
+      return Math.abs(p.area - x.area) - Math.abs(q.area - x.area);         // прочие — по близости площади
+    }).slice(0, 8);
     const list = top.map((o) => {
       const u = safeUrl(o.url);
       const name = `${esc(o.type || "")}, ${nf.format(o.area)} м²`;
-      const addr = esc(o.addr || o.city || "");
       const nameHtml = u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name;
-      return `<li><span class="ana-an">${nameHtml}${addr ? `<span class="ana-addr">${addr}</span>` : ""}</span>
+      const d = nearSet.has(o.hash) ? distTo(o) : null;
+      const distStr = d != null ? `<span class="ana-near">${d < 1 ? Math.round(d * 1000) + " м" : d.toFixed(1) + " км"}</span>` : "";
+      const addr = esc(o.addr || o.city || "");
+      const meta = [distStr, addr].filter(Boolean).join(" · ");
+      return `<li><span class="ana-an">${nameHtml}${meta ? `<span class="ana-addr">${meta}</span>` : ""}</span>
         <b>${money(ppmOf(o))}${unit}</b></li>`;
     }).join("");
 
@@ -770,6 +783,7 @@
         const v = parseFloat(e.target.value); state[id] = isFinite(v) ? v : null; apply();
       }, 200)));
     $("#auctionPast").addEventListener("change", (e) => { state.auctionPast = e.target.checked; apply(); });
+    $("#ownersOnly").addEventListener("change", (e) => { state.ownersOnly = e.target.checked; apply(); });
 
     document.querySelectorAll(".dealChk").forEach((cb) => {
       cb.checked = false;  // старт: ничего не выбрано = показаны все сделки (WebKit иначе восстанавливает)
@@ -782,12 +796,13 @@
 
     function reset() {
       Object.assign(state, { q: "", sort: "date", auctionPast: false,
-                             areaMin: null, areaMax: null });
+                             areaMin: null, areaMax: null, ownersOnly: false });
       state.deals.clear();
       MSELS.forEach((m) => m.clear());
       $("#q").value = ""; $("#sort").value = "date";
       $("#areaMin").value = ""; $("#areaMax").value = "";
       $("#auctionPast").checked = false; $("#pastWrap").hidden = true;
+      $("#ownersOnly").checked = false;
       document.querySelectorAll(".dealChk").forEach((cb) => (cb.checked = false));
       apply();
     }

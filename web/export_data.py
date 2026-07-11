@@ -130,6 +130,31 @@ def parse_coords(s):
     return [float(m.group(1)), float(m.group(2))]
 
 
+# --- классификатор владельца объявления: собственник / агентство / гос ---
+# Признак берём из ТЕКСТА: поле «Контакт» (kufar/realt/megapolis его размечают),
+# где пусто — из «Имя контакта». ⚠ Частоту телефона НЕ используем: у крупного
+# собственника легко много объектов на одном номере (правило Дениса 11.07).
+_GOV = re.compile(r"ГХУ|управделами|госимущ|исполком|коммунальн", re.I)
+_AGENCY_C = re.compile(r"агент", re.I)
+_OWNER_C = re.compile(r"собственник|частн|владел|хозя", re.I)
+_AGENCY_N = re.compile(r"агентств|недвижим|риелт|риэлт|\bООО\b|\bЧУП\b|\bЧТУП\b|\bАН\b|групп|estate|realt", re.I)
+
+
+def classify_owner(contact, name):
+    """→ 'owner' | 'agency' | 'gov' | '' (не размечено). '' показываем как возможного
+    собственника — безопаснее не спрятать реального (правило Дениса)."""
+    c, n = str(contact or ""), str(name or "")
+    if _GOV.search(c) or _GOV.search(n):
+        return "gov"
+    if _AGENCY_C.search(c):
+        return "agency"
+    if _OWNER_C.search(c):
+        return "owner"
+    if _AGENCY_N.search(n):
+        return "agency"
+    return "owner" if n.strip() else ""
+
+
 def load_sheet(ws, deal, sheet_name):
     rows = ws.iter_rows(values_only=True)
     next(rows, None)            # строка 1 — заголовок-плашка
@@ -137,10 +162,15 @@ def load_sheet(ws, deal, sheet_name):
     if not header:
         return []
     idx = {}
+    ci_contact = ci_name = None
     for i, name in enumerate(header):
         name = (str(name).strip() if name is not None else "")
         if name in COLMAP:
             idx[COLMAP[name]] = i
+        elif name == "Контакт":
+            ci_contact = i
+        elif name == "Имя контакта":
+            ci_name = i
     out = []
     # данные начинаются с 3-й строки Excel; enumerate держит реальный номер строки
     for excel_row, r in enumerate(rows, start=3):
@@ -170,6 +200,9 @@ def load_sheet(ws, deal, sheet_name):
             "photo": first_photo(rec.get("photo", "")) or PHOTO_CACHE.get(rec.get("hash", ""), ""),
             "coords": parse_coords(rec.get("coords", "")),
             "desc": (rec.get("desc", "")[:200]),
+            "who": classify_owner(
+                r[ci_contact] if ci_contact is not None and ci_contact < len(r) else "",
+                r[ci_name] if ci_name is not None and ci_name < len(r) else ""),
             "hash": rec.get("hash", ""),
         }
         out.append(item)
@@ -371,6 +404,8 @@ def main():
         "auctionFuture": sum(1 for x in items if x["deal"] == "auction" and x.get("future")),
         "belretail": sum(1 for x in items if x["deal"] == "belretail"),
         "bank": sum(1 for x in items if x["deal"] == "bank"),
+        "owner": sum(1 for x in items if x.get("who") == "owner"),
+        "agency": sum(1 for x in items if x.get("who") == "agency"),
         "generated": __import__("datetime").datetime.now().strftime("%d.%m.%Y %H:%M"),
     }
 
