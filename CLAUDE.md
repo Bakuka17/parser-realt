@@ -157,15 +157,19 @@ SPM-проект, открывается через `xed Package.swift`. min mac
   `{target}` (валидируется whitelist'ом). **ТРИ кнопки в шапке (05.07.2026, по просьбе Дениса):
   «Обновить» → target `all`, «Обновить аукционы» → `auctions`, «Обновить банки» → `banks`**
   (кнопки в `.appbar__actions`, вторичные — стиль `btn-update--alt`; при running дизейблятся все три).
-  target `all` = полный прогон через `_update_steps()`. **Правило «свежие первыми»
-  (05.07.2026): СНАЧАЛА весь сбор свежих объявлений, ПОТОМ доборы телефонов** — квота
-  раскрытий kufar дефицитна, пусть уходит на максимально свежую базу. Порядок: `collect_realty.py`
-  (realt/megapolis/kufar/**gohome/byrealty**) → **`collect_geo.py` (domovita+edc, БЕЗ VPN)** →
-  `collect_auctions.py` (14 площадок, вкл. **onebv**) → `collect_banks.py` → **[доборы:]**
-  `kufar_phones.py --limit KUFAR_PHONE_LIMIT` → `belretail_phones.py` → один ре-экспорт.
+  ⚠ **10.07.2026 (просьба Дениса): аукционы и банки ВЫНЕСЕНЫ из `all`.** Раньше `all` был полным
+  прогоном всего — Денис просил, чтобы основное «Обновить» НЕ тащило тяжёлые аукционы/банки
+  каждый раз (они нужны редко → живут только на своих кнопках). Теперь **`all` = объявления +
+  гео + телефоны kufar** (`collect_realty.py` + `collect_geo.py` + `kufar_phones.py`), а
+  `collect_auctions.py`/`collect_banks.py`+`belretail_phones.py` идут ТОЛЬКО по своим targets
+  (`auctions`/`banks`) — в `_update_steps` убрано `"all"` из их условий. **Правило «свежие первыми»
+  (05.07.2026): СНАЧАЛА сбор свежих объявлений (realty/geo), ПОТОМ добор телефонов kufar** — квота
+  раскрытий kufar дефицитна, пусть уходит на максимально свежую базу.
   (`_update_steps` копит `collect` и `phones` раздельно, возвращает `collect + phones`.)
-  Гео-шаг и kufar/belretail-телефоны сами пропустятся, если IP не белорусский (под VPN
-  соберут 0, остальное не ломают). Targets `realty`/`geo` остаются CLI-only (в whitelist, без кнопок).
+  Гео-шаг и kufar-телефоны сами пропустятся, если IP не белорусский (под VPN
+  соберут 0, остальное не ломают). Target `realty` (только объявления, без гео) остаётся
+  CLI-only. Проверка после правки: `_update_steps('all')` = realty/geo/kufar_phones,
+  `'auctions'` = только аукционы, `'banks'` = банки+belretail (сверено вызовом 10.07).
   Один общий JOB/status/stop — два сбора разом нельзя (оба пишут в xlsx). Всё со стримом лога.
   Каждый шаг — отдельный процесс → terminate чистый. После ре-экспорта — шаг прогрева
   фото-кэша (`prefetch_photos.py --limit 2000`, идемпотентно: новые объекты докачиваются).
@@ -343,15 +347,15 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ## Текущее состояние данных
 
 <!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->
-`commercial_realty.xlsx` = **10451 объектов** (обновлено 10.07.2026):
-- kufar.by: 5960
-- domovita.by: 1453
+`commercial_realty.xlsx` = **11644 объектов** (обновлено 11.07.2026):
+- kufar.by: 6087
+- realt.by: 1586
+- domovita.by: 1458
 - megapolis-real.by: 1260
-- realt.by: 904
-- bc.by: 767
+- bc.by: 1146
 - gohome.by: 101
 - byrealty.by: 6
-Телефоны: ~41%.
+Телефоны: ~47%.
 <!-- AUTO-STATE-END -->
 
 ### ⚠ АВАРИЯ 09.07.2026 — база затёрта (24326 → 1828). Причина найдена, фикс в коде

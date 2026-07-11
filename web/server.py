@@ -81,14 +81,16 @@ def _stream(cmd):
 
 
 def _update_steps(target, py):
-    """Список (заголовок, команда) для target. 'all' = полный прогон всех источников.
-    Гео-источники (domovita/edc) и телефоны kufar/belretail сами пропустятся, если IP
-    не белорусский — под VPN просто соберут 0, остальное не ломают.
+    """Список (заголовок, команда) для target. 'all' (кнопка «Обновить») =
+    объявления + гео + телефоны kufar. Аукционы и банки НЕ входят в 'all' —
+    они тяжёлые и нужны редко, поэтому вынесены на свои кнопки (просьба Дениса 10.07).
+    Гео-источники (domovita/edc) и телефоны kufar сами пропустятся, если IP не
+    белорусский — под VPN просто соберут 0, остальное не ломают.
 
-    Правило «свежие первыми» (05.07.2026): СНАЧАЛА весь сбор свежих объявлений
-    (realty/geo/auctions/banks), ПОТОМ доборы телефонов (kufar/belretail) — чтобы
-    дефицитная дневная квота раскрытий уходила на максимально свежую базу. Доборы
-    сами берут свежие строки первыми (kufar_phones.collect_targets идёт с конца)."""
+    Правило «свежие первыми» (05.07.2026): СНАЧАЛА сбор свежих объявлений
+    (realty/geo), ПОТОМ добор телефонов (kufar) — чтобы дефицитная дневная квота
+    раскрытий уходила на максимально свежую базу. Добор берёт свежие строки первыми
+    (kufar_phones.collect_targets идёт с конца)."""
     collect, phones = [], []
     if target in ("all", "realty"):
         collect.append(("Сбор объявлений (realt/megapolis/kufar/gohome/byrealty)",
@@ -99,9 +101,9 @@ def _update_steps(target, py):
     if target in ("all", "geo"):
         collect.append(("Гео-источники domovita + edc (нужен бел. IP — VPN выключен)",
                         [py, "-u", "collect_geo.py"]))
-    if target in ("all", "auctions"):
+    if target == "auctions":          # только по своей кнопке, не в 'all'
         collect.append(("Сбор аукционов (10 площадок)", [py, "-u", "collect_auctions.py"]))
-    if target in ("all", "banks"):
+    if target == "banks":             # только по своей кнопке, не в 'all'
         collect.append(("Недвижимость банков", [py, "-u", "collect_banks.py"]))
         phones.append(("Телефоны компаний belretail (нужен бел. IP)", [py, "-u", "belretail_phones.py"]))
     return collect + phones           # весь сбор свежих → потом доборы телефонов
