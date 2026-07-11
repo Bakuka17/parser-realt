@@ -49,4 +49,4 @@ codesign --force --deep -s - "$APP" >/dev/null 2>&1
 
 echo "4/4  Готово: $APP"
 echo "    Запуск:  open '$PWD/$APP'"
-echo "    Установить: перетащи dist/RealtyApp.app в «Программы»."
+echo "    Установить: перетащи dist/RealtyApp.app в «Программы» (у Дениса стоит как /Applications/Axis.app)."
