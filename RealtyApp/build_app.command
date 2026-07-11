@@ -20,8 +20,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key>               <string>RealtyApp</string>
-  <key>CFBundleDisplayName</key>        <string>Недвижимость</string>
+  <key>CFBundleName</key>               <string>Axis</string>
+  <key>CFBundleDisplayName</key>        <string>Axis</string>
   <key>CFBundleIdentifier</key>         <string>by.realty.dashboard</string>
   <key>CFBundleExecutable</key>         <string>RealtyApp</string>
   <key>CFBundlePackageType</key>        <string>APPL</string>
