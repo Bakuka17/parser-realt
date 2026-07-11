@@ -10,8 +10,8 @@
   --surface:       oklch(0.205 0.010 80);
   --surface-2:     oklch(0.180 0.009 80);
   --surface-3:     oklch(0.250 0.013 80);
-  --border:        oklch(0.305 0.022 85);
-  --border-strong: oklch(0.415 0.038 85);
+  --border:        oklch(0.42 0.075 85);   /* золотая окантовка */
+  --border-strong: oklch(0.58 0.105 85);
 
   /* ink — тёплый белый */
   --ink:   oklch(0.950 0.012 90);
