@@ -13,10 +13,10 @@
   --border:        oklch(0.42 0.075 85);   /* золотая окантовка */
   --border-strong: oklch(0.58 0.105 85);
 
-  /* ink — тёплый белый */
-  --ink:   oklch(0.950 0.012 90);
-  --ink-2: oklch(0.780 0.020 88);
-  --ink-3: oklch(0.630 0.022 86);
+  /* ink — золото (весь текст золотой, иерархия яркостью) */
+  --ink:   oklch(0.870 0.150 90);
+  --ink-2: oklch(0.750 0.115 88);
+  --ink-3: oklch(0.620 0.085 86);
 
   /* accent (gold) — selection, focus, primary */
   --accent:      oklch(0.780 0.130 85);
@@ -383,11 +383,12 @@ h1, .auc-title, .company-name, .empty__title { text-wrap: balance; }
 .btn:active { transform: scale(0.96); }  /* тактильный отклик (make-interfaces-feel-better) */
 
 .btn--call {
-  flex: 1 1 auto; background: var(--call); color: white;
+  flex: 1 1 auto; background: var(--accent); color: var(--accent-ink);
+  font-weight: 700;
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
 }
-.btn--call:hover { background: var(--call-press); }
-.btn--call.copied { background: var(--call-press); }
+.btn--call:hover { background: var(--accent-press); }
+.btn--call.copied { background: var(--accent-press); }
 
 .btn--nophone {
   flex: 1 1 auto; background: var(--surface-2); color: var(--ink-3);
