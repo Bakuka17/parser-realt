@@ -356,15 +356,15 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 ## Текущее состояние данных
 
 <!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->
-`commercial_realty.xlsx` = **11715 объектов** (обновлено 11.07.2026):
-- kufar.by: 6158
-- realt.by: 1586
-- domovita.by: 1458
-- megapolis-real.by: 1260
+`commercial_realty.xlsx` = **12304 объектов** (обновлено 11.07.2026):
+- kufar.by: 6179
+- realt.by: 2118
+- domovita.by: 1466
+- megapolis-real.by: 1268
 - bc.by: 1146
-- gohome.by: 101
+- gohome.by: 121
 - byrealty.by: 6
-Телефоны: ~47%.
+Телефоны: ~49%.
 <!-- AUTO-STATE-END -->
 
 ### ⚠ АВАРИЯ 09.07.2026 — база затёрта (24326 → 1828). Причина найдена, фикс в коде
