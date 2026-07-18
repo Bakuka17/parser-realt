@@ -8,6 +8,12 @@
       "port": 8765,
       "autoPort": true,
       "env": { "REALTY_NO_BROWSER": "1" }
+    },
+    {
+      "name": "reader",
+      "runtimeExecutable": "/usr/bin/python3",
+      "runtimeArgs": ["/Users/denis/reader/server.py", "8766"],
+      "port": 8766
     }
   ]
 }
