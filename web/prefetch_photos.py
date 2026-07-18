@@ -25,6 +25,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import server  # noqa: E402 — переиспользуем load_index / _cached_photo / fetch_photo
 
 
+def purge_orphans(items, days):
+    """Удалить фото объектов, которых нет в базе. Возвращает освобождённые байты.
+
+    Карантин `days` защищает «мигнувшее» объявление: временно пропало из выдачи —
+    фото не теряем. Но после аварии 09.07 хэши сменились массово и старые объекты
+    не вернутся никогда → тогда чистим принудительно (--orphan-days 0).
+    """
+    live = {it.get("hash") or "" for it in items}
+    if len(live) <= 1000:   # гвард: не сносить кэш, если data.js пустой или битый
+        print(f"⚠️  В индексе всего {len(live)} объектов — уборка пропущена (похоже на битый data.js)")
+        return 0
+    cutoff = time.time() - days * 86400
+    freed = n = 0
+    for f in server.PHOTOS_CACHE_DIR.iterdir():
+        if f.stem in live:
+            continue
+        st = f.stat()
+        if st.st_mtime >= cutoff:
+            continue
+        freed += st.st_size
+        f.unlink()
+        n += 1
+    if n:
+        print(f"Удалено осиротевших файлов: {n} ({freed/1024**3:.2f} ГБ) — "
+              f"объектов нет в базе дольше {days} дн.")
+    return freed
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0, help="макс. сколько СКАЧАТЬ за прогон (0 = все)")
@@ -32,6 +60,8 @@ def main():
     ap.add_argument("--workers", type=int, default=3, help="параллельные загрузки (≤3 безопасно для kufar)")
     ap.add_argument("--delay", type=float, default=0.0, help="пауза между объектами, с (megapolis банит залп: --workers 1 --delay 4)")
     ap.add_argument("--reset-none", action="store_true", help="снять .none-метки выбранных --sources перед прогревом (стереть ложные негативы от бана)")
+    ap.add_argument("--orphan-days", type=int, default=30, help="возраст сироты для удаления, дней (0 = чистить всех, кого нет в базе)")
+    ap.add_argument("--purge-only", action="store_true", help="только уборка сирот, без прогрева")
     a = ap.parse_args()
 
     server.load_index()
@@ -42,17 +72,10 @@ def main():
     srcs = {s.strip() for s in a.sources.split(",") if s.strip()}
 
     items = list(server.INDEX.values())
-    # чистка сирот: объект ушёл из базы → его фото больше никто не запросит.
-    # Карантин 30 дней: «мигнувшее» (временно пропавшее) объявление фото не теряет
-    live = {it.get("hash") or "" for it in items}
-    cutoff = time.time() - 30 * 86400
-    if len(live) > 1000:  # гвард: не сносить кэш, если data.js вдруг пустой/битый
-        orphans = [f for f in server.PHOTOS_CACHE_DIR.iterdir()
-                   if f.stem not in live and f.stat().st_mtime < cutoff]
-        for f in orphans:
-            f.unlink()
-        if orphans:
-            print(f"Удалено осиротевших фото: {len(orphans)} (объектов нет в базе >30 дней)")
+    freed = purge_orphans(items, a.orphan_days)
+    if a.purge_only:
+        print(f"Освобождено: {freed/1024**3:.2f} ГБ. Прогрев не запускался (--purge-only).")
+        return
     if a.reset_none:   # снять негативные метки (ложные .none от бана megapolis) перед прогревом
         reset = 0
         for it in items:
