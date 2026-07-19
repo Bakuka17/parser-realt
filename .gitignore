@@ -34,7 +34,7 @@ geo_probe_report.txt
 present.html
 
 # Локальные разрешения Claude Code (машинно-специфичны, не код)
-.claude/settings.local.json
+.claude/settings.local.json*
 
 # кэши дашборда: гео-окружение (OSM) и AI-вердикты (GLM) — данные, не код
 web/geo_cache.json
