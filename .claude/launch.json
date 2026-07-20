@@ -14,6 +14,12 @@
       "runtimeExecutable": "/usr/bin/python3",
       "runtimeArgs": ["/Users/denis/reader/server.py", "8766"],
       "port": 8766
+    },
+    {
+      "name": "trainer",
+      "runtimeExecutable": "/usr/bin/python3",
+      "runtimeArgs": ["-m", "http.server", "8899", "-d", "exam_course/trainer"],
+      "port": 8899
     }
   ]
 }
