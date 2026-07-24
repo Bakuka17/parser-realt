@@ -368,17 +368,11 @@ Standalone-парсеры (`megapolis_parser.py`, `kufar_parser.py`, `realty_par
 
 ## Текущее состояние данных
 
-<!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->
-`commercial_realty.xlsx` = **17068 объектов** (обновлено 20.07.2026):
-- kufar.by: 7619
-- realt.by: 3440
-- bc.by: 2739
-- domovita.by: 1644
-- megapolis-real.by: 1398
-- gohome.by: 222
-- byrealty.by: 6
-Телефоны: ~57%.
-<!-- AUTO-STATE-END -->
+Актуальные счётчики (объектов по источникам, % телефонов) вынесены из этого
+инструкционного файла в генерат [DATA_STATE.md](DATA_STATE.md) — обновляется
+автоматически в конце `collect_realty.py`. Свежую цифру брать ОТТУДА, не отсюда:
+захардкоженные числа в инструкциях протухают и вводят в заблуждение (урок obsidian-mind
+«no hardcoded counts in instruction files» + наша авария ниже).
 
 ### ⚠ АВАРИЯ 09.07.2026 — база затёрта (24326 → 1828). Причина найдена, фикс в коде
 

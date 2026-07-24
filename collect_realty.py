@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import re
 import shutil
 from collections import Counter
 from datetime import date
@@ -57,28 +56,20 @@ def update_memory_and_backup(out_file: Path, label: str = "collect_realty") -> N
     total = len(db)
     ph_pct = (100 * ph // total) if total else 0
 
-    # 2. Переписать авто-блок в CLAUDE.md (мой ручной текст не трогаем)
-    claude_md = HERE / "CLAUDE.md"
-    if claude_md.exists():
-        lines = [f"`{out_file.name}` = **{total} объектов** (обновлено {date.today():%d.%m.%Y}):"]
-        for s, c in src.most_common():
-            lines.append(f"- {s}: {c}")
-        lines.append(f"Телефоны: ~{ph_pct}%.")
-        block = (
-            "<!-- AUTO-STATE-START (обновляется автоматически в конце collect_realty.py) -->\n"
-            + "\n".join(lines)
-            + "\n<!-- AUTO-STATE-END -->"
-        )
-        text = claude_md.read_text(encoding="utf-8")
-        new_text = re.sub(
-            r"<!-- AUTO-STATE-START.*?<!-- AUTO-STATE-END -->",
-            block.replace("\\", "\\\\"),
-            text,
-            flags=re.S,
-        )
-        if new_text != text:
-            claude_md.write_text(new_text, encoding="utf-8")
-            print("  🧠 CLAUDE.md: состояние обновлено")
+    # 2. Волатильные счётчики — в отдельный генерат DATA_STATE.md, НЕ в CLAUDE.md.
+    #    Инструкционный файл держим стабильным: захардкоженные числа в нём протухают
+    #    и вводят в заблуждение (урок obsidian-mind, вынесено 24.07.2026).
+    claude_md = HERE / "CLAUDE.md"  # ещё нужен ниже для бэкапа
+    lines = [f"`{out_file.name}` = **{total} объектов** (обновлено {date.today():%d.%m.%Y}):"]
+    for s, c in src.most_common():
+        lines.append(f"- {s}: {c}")
+    lines.append(f"Телефоны: ~{ph_pct}%.")
+    (HERE / "DATA_STATE.md").write_text(
+        "# Состояние базы — авто-генерируется collect_realty.py, НЕ редактировать руками\n\n"
+        + "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+    print("  🧠 DATA_STATE.md: состояние обновлено")
 
     # 3. Бэкап в Яндекс.Диск (всё: код + xlsx + saved_realty + photos/ + CLAUDE.md + .command).
     if BACKUP_DIR.parent.exists():
@@ -118,6 +109,9 @@ def update_memory_and_backup(out_file: Path, label: str = "collect_realty") -> N
                             n += 1
             if claude_md.exists():
                 shutil.copy2(claude_md, BACKUP_DIR / "CLAUDE.md")
+            ds = HERE / "DATA_STATE.md"
+            if ds.exists():
+                shutil.copy2(ds, BACKUP_DIR / "DATA_STATE.md")
             # photos/ (фото избранных) — синкаем целиком
             photos_src = HERE / "photos"
             if photos_src.is_dir():
