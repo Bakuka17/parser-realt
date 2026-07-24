@@ -1,0 +1,7 @@
+node_modules/
+out/
+public/*.png
+public/*.jpg
+public/*.mp3
+public/*.wav
+public/*.m4a
